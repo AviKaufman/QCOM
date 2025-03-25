@@ -1243,7 +1243,7 @@ def cumulative_distribution(binary_dict):
     return x_axis, y_axis
 
 
-def compute_N_of_p(probabilities, p_delta=0.1):
+def compute_N_of_p(probabilities, p_delta=0.1, show_progress=False):
     """
     Computes N(p) for each unique nonzero probability using a log-scale neighborhood.
 
@@ -1251,6 +1251,7 @@ def compute_N_of_p(probabilities, p_delta=0.1):
         probabilities (array-like): List or array of probabilities.
         p_delta (float): Width in log10 space for the surrounding window.
                          Bounds are computed as log10(p) ± p_delta / 2.
+        show_progress (bool): Whether to display progress updates using ProgressManager.
 
     Returns:
         tuple: (unique_probs, N_values) where:
@@ -1272,5 +1273,16 @@ def compute_N_of_p(probabilities, p_delta=0.1):
         sigma_lower = Sigma(lower)
         return (sigma_upper - sigma_lower) / ((upper - lower) * p)
 
-    N_values = [N_of_p(p) for p in nonzero_probs]
+    N_values = []
+
+    with (
+        ProgressManager.progress("Computing N(p)", total_steps=len(nonzero_probs))
+        if show_progress
+        else ProgressManager.dummy_context()
+    ):
+        for i, p in enumerate(nonzero_probs):
+            N_values.append(N_of_p(p))
+            if show_progress:
+                ProgressManager.update_progress(i + 1)
+
     return nonzero_probs, N_values
