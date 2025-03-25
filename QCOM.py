@@ -1241,3 +1241,36 @@ def cumulative_distribution(binary_dict):
     y_axis = np.append(cumulative_prob, [1])  # Ensure y-axis ends at 1
 
     return x_axis, y_axis
+
+
+def compute_N_of_p(probabilities, p_delta=0.1):
+    """
+    Computes N(p) for each unique nonzero probability using a log-scale neighborhood.
+
+    Args:
+        probabilities (array-like): List or array of probabilities.
+        p_delta (float): Width in log10 space for the surrounding window.
+                         Bounds are computed as log10(p) ± p_delta / 2.
+
+    Returns:
+        tuple: (unique_probs, N_values) where:
+            - unique_probs is a sorted array of unique nonzero probabilities
+            - N_values is a list of N(p) values corresponding to each unique probability
+    """
+    # Ensure numpy array and filter out zero values
+    probs = np.array(probabilities)
+    nonzero_probs = np.sort(np.unique(probs[probs > 0]))
+
+    def Sigma(pLambda):
+        return np.sum(probs[probs <= pLambda])
+
+    def N_of_p(p):
+        log_p = np.log10(p)
+        lower = 10 ** (log_p - p_delta / 2)
+        upper = 10 ** (log_p + p_delta / 2)
+        sigma_upper = Sigma(upper)
+        sigma_lower = Sigma(lower)
+        return (sigma_upper - sigma_lower) / ((upper - lower) * p)
+
+    N_values = [N_of_p(p) for p in nonzero_probs]
+    return nonzero_probs, N_values
