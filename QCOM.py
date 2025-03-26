@@ -1243,46 +1243,76 @@ def cumulative_distribution(binary_dict):
     return x_axis, y_axis
 
 
-def compute_N_of_p(probabilities, p_delta=0.1, show_progress=False):
+def compute_N_of_p_all(probabilities, p_delta=0.1, show_progress=False):
     """
-    Computes N(p) for each unique nonzero probability using a log-scale neighborhood.
+    Efficiently compute N(p) for each unique nonzero probability.
 
     Args:
         probabilities (array-like): List or array of probabilities.
-        p_delta (float): Width in log10 space for the surrounding window.
-                         Bounds are computed as log10(p) ± p_delta / 2.
-        show_progress (bool): Whether to display progress updates using ProgressManager.
+        p_delta (float): Width in log10 space for the neighborhood.
+        show_progress (bool): Whether to show progress updates.
 
     Returns:
-        tuple: (unique_probs, N_values) where:
-            - unique_probs is a sorted array of unique nonzero probabilities
-            - N_values is a list of N(p) values corresponding to each unique probability
+        tuple: (unique_probs, N_values)
     """
-    # Ensure numpy array and filter out zero values
     probs = np.array(probabilities)
-    nonzero_probs = np.sort(np.unique(probs[probs > 0]))
+    probs = probs[probs > 0]
+    sorted_probs = np.sort(probs)
+    cumulative_probs = np.cumsum(sorted_probs)
+    unique_probs = np.unique(sorted_probs)
 
-    def Sigma(pLambda):
-        return np.sum(probs[probs <= pLambda])
-
-    def N_of_p(p):
+    def compute_single_N(p):
         log_p = np.log10(p)
         lower = 10 ** (log_p - p_delta / 2)
         upper = 10 ** (log_p + p_delta / 2)
-        sigma_upper = Sigma(upper)
-        sigma_lower = Sigma(lower)
+
+        lower_idx = np.searchsorted(sorted_probs, lower, side="left")
+        upper_idx = np.searchsorted(sorted_probs, upper, side="right")
+
+        sigma_lower = cumulative_probs[lower_idx - 1] if lower_idx > 0 else 0.0
+        sigma_upper = cumulative_probs[upper_idx - 1] if upper_idx > 0 else 0.0
+
         return (sigma_upper - sigma_lower) / ((upper - lower) * p)
 
     N_values = []
 
     with (
-        ProgressManager.progress("Computing N(p)", total_steps=len(nonzero_probs))
+        ProgressManager.progress("Computing N(p)", total_steps=len(unique_probs))
         if show_progress
         else ProgressManager.dummy_context()
     ):
-        for i, p in enumerate(nonzero_probs):
-            N_values.append(N_of_p(p))
+        for i, p in enumerate(unique_probs):
+            N_values.append(compute_single_N(p))
             if show_progress:
                 ProgressManager.update_progress(i + 1)
 
-    return nonzero_probs, N_values
+    return unique_probs, N_values
+
+
+def compute_N_of_p(p, sorted_probs, cumulative_probs, p_delta=0.1):
+    """
+    Compute N(p) at a single value using precomputed arrays.
+
+    Args:
+        p (float): Probability to evaluate N(p).
+        sorted_probs (np.array): Sorted array of nonzero probabilities.
+        cumulative_probs (np.array): Cumulative sum of sorted_probs.
+        p_delta (float): Width in log10 space.
+
+    Returns:
+        float: N(p)
+    """
+    if p <= 0:
+        return 0.0
+
+    log_p = np.log10(p)
+    lower = 10 ** (log_p - p_delta / 2)
+    upper = 10 ** (log_p + p_delta / 2)
+
+    lower_idx = np.searchsorted(sorted_probs, lower, side="left")
+    upper_idx = np.searchsorted(sorted_probs, upper, side="right")
+
+    sigma_lower = cumulative_probs[lower_idx - 1] if lower_idx > 0 else 0.0
+    sigma_upper = cumulative_probs[upper_idx - 1] if upper_idx > 0 else 0.0
+
+    return (sigma_upper - sigma_lower) / ((upper - lower) * p)
