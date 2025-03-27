@@ -1,5 +1,5 @@
 import numpy as np
-import .progress as ProgressManager
+from .progress import ProgressManager
 from utils import order_dict, part_dict
 
 

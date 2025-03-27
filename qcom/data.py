@@ -1,4 +1,4 @@
-import progress as ProgressManager
+from .progress import ProgressManager
 import random
 
 """
