@@ -4,4 +4,4 @@ This file is for testing the code in QCOM.py. I will try my best to develop test
 Last updated: 3-24-2025
 """
 
-import QCOM as QC
+import qcom as QC

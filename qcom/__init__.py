@@ -10,4 +10,10 @@ It supports analysis of thermodynamic properties in quantum systems, particularl
 __version__ = "0.1.0"
 __author__ = "Avi Kaufman"
 
-from .QCOM import *
+from .classical_info import *
+from .data import *
+from .hamiltonians import *
+from .io import *
+from .progress import *
+from .quantum_info import *
+from .utils import *
