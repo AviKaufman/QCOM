@@ -40,4 +40,4 @@ QCOM enables users to compute exact results for model Hamiltonians, analyze prob
 
 QCOM is an active work in progress. New features will be added to meet the evolving needs of the Meurice Group or other researchers. Suggestions, bug reports, and collaborations are welcome.
 
-**Last updated:** March 24, 2025
+**Last updated:** March 26, 2025
