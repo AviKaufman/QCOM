@@ -1,4 +1,4 @@
-import progress as ProgressManager
+from .progress import ProgressManager
 import numpy as np
 from scipy.sparse import csr_matrix, kron, identity
 

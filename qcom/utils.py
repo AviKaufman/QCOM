@@ -1,4 +1,4 @@
-import progress as ProgressManager
+from .progress import ProgressManager
 import numpy as np
 import time
 from scipy.sparse.linalg import eigsh

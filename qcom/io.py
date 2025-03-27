@@ -1,6 +1,6 @@
 import random
 import os
-import progress as ProgressManager
+from .progress import ProgressManager
 import pandas as pd
 
 """
