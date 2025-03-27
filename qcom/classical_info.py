@@ -1,6 +1,6 @@
 import numpy as np
 from .progress import ProgressManager
-from utils import order_dict, part_dict
+from .utils import order_dict, part_dict
 
 
 """

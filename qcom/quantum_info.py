@@ -1,6 +1,6 @@
 import numpy as np
 from .progress import ProgressManager
-from utils import find_eigenstate
+from .utils import find_eigenstate
 import time
 
 

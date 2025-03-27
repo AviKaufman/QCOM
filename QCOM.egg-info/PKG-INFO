@@ -1,3 +1,19 @@
+Metadata-Version: 2.4
+Name: QCOM
+Version: 0.1.7
+Summary: Quantum computation and thermodynamic analysis tools
+Author-email: Avi Kaufman <avigkaufman@gmail.com>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/AviKaufman/QCOM
+Project-URL: Source, https://github.com/AviKaufman/QCOM
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE.txt
+Requires-Dist: numpy>=1.23
+Requires-Dist: scipy>=1.10
+Requires-Dist: pandas>=1.5
+Dynamic: license-file
+
 # QCOM
 
 **Quantum Computation (QCOM)** is a Python package developed as part of Avi Kaufman’s 2025 honors thesis in physics. Designed to support the **Meurice Research Group**, QCOM focuses on analyzing thermodynamic properties of quantum systems — particularly those involving neutral atom (Rydberg) platforms.
@@ -24,11 +40,6 @@ print(dir(qcom))
 ```
 
 You should see an output like this:
-
-```text
-
-['ProgressManager', '__author__', '__builtins__', '__cached__', '__doc__', '__file__', '__loader__', '__name__', '__package__', '__path__', '__spec__', '__version__', 'build_ising_hamiltonian', 'build_ising_hamiltonian_ladder', 'build_rydberg_hamiltonian_chain', 'build_rydberg_hamiltonian_ladder', 'classical_info', 'combine_datasets', 'compute_N_of_p', 'compute_N_of_p_all', 'compute_mutual_information', 'compute_reduced_density_matrix', 'compute_reduced_shannon_entropy', 'compute_shannon_entropy', 'contextmanager', 'create_density_matrix', 'csr_matrix', 'cumulative_distribution', 'data', 'eigsh', 'find_eigenstate', 'get_eigenstate_probabilities', 'hamiltonians', 'identity', 'introduce_error_data', 'io', 'kron', 'normalize_to_probabilities', 'np', 'order_dict', 'os', 'parse_file', 'parse_parq', 'part_dict', 'pd', 'print_most_probable_data', 'quantum_info', 'random', 'sample_data', 'save_data', 'save_dict_to_parquet', 'sys', 'time', 'utils', 'von_neumann_entropy_from_hamiltonian', 'von_neumann_entropy_from_rdm']
-```
 
 ## Core Capabilities
 

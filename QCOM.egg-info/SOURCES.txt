@@ -1,0 +1,17 @@
+LICENSE.txt
+README.md
+pyproject.toml
+QCOM.egg-info/PKG-INFO
+QCOM.egg-info/SOURCES.txt
+QCOM.egg-info/dependency_links.txt
+QCOM.egg-info/requires.txt
+QCOM.egg-info/top_level.txt
+qcom/__init__.py
+qcom/classical_info.py
+qcom/data.py
+qcom/hamiltonians.py
+qcom/io.py
+qcom/progress.py
+qcom/quantum_info.py
+qcom/utils.py
+tests/test.py
