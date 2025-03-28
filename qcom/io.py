@@ -74,25 +74,32 @@ def parse_file(
     return data, total_count
 
 
-def parse_parq(file_name):
+def parse_parq(file_name, show_progress=False):
     """
     Reads a Parquet file and converts it back into a dictionary.
 
     Parameters:
         file_name (str): The Parquet file name to read.
+        show_progress (bool, optional): Whether to display progress updates.
 
     Returns:
         dict: A dictionary where keys are states and values are probabilities.
     """
     total_steps = 2
-    with ProgressManager.progress("Parsing Parquet file", total_steps=total_steps):
+    with (
+        ProgressManager.progress("Parsing Parquet file", total_steps=total_steps)
+        if show_progress
+        else ProgressManager.dummy_context()
+    ):
         # Step 1: Read the Parquet file into a DataFrame.
         df = pd.read_parquet(file_name, engine="pyarrow")
-        ProgressManager.update_progress(1)
+        if show_progress:
+            ProgressManager.update_progress(1)
 
         # Step 2: Convert the DataFrame into a dictionary.
         data_dict = dict(zip(df["state"], df["probability"]))
-        ProgressManager.update_progress(2)
+        if show_progress:
+            ProgressManager.update_progress(2)
 
     return data_dict
 
