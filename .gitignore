@@ -47,3 +47,14 @@ pytest_cache/
 
 # Profiling
 .prof
+
+# Parquet files (if generated during tests or examples)
+*.parquet
+
+# Markdown preview cache (sometimes used in VSCode)
+*.md.html
+
+# Temporary files or swap files
+*.swp
+*.tmp
+*.log
