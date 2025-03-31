@@ -113,6 +113,27 @@ def compute_mutual_information(prob_dict, configuration):
     return mutual_information
 
 
+def compute_conditional_entropy(prob_dict, configuration):
+    """
+    Computes the conditional entropy of region A given region B.
+
+    Args:
+        prob_dict (dict): A dictionary mapping states to their probabilities.
+        configuration (list): A binary list specifying which sites belong to which region (0 for A, 1 for B).
+
+    Returns:
+        float: Conditional entropy of region A given region B.
+    """
+    # Compute full system entropy
+    shan_AB = compute_shannon_entropy(prob_dict)
+    # Compute reduced Shannon entropy for region B
+    shan_B = compute_reduced_shannon_entropy(prob_dict, configuration, target_region=1)
+
+    # Compute conditional entropy
+    conditional_entropy = shan_AB - shan_B
+    return conditional_entropy
+
+
 def cumulative_distribution(binary_dict):
     """
     Compute the cumulative probability distribution from a given binary probability dictionary.
