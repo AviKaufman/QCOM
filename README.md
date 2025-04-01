@@ -11,7 +11,7 @@ QCOM enables users to compute exact results for model Hamiltonians, analyze prob
 You can install the latest release of QCOM directly from PyPI:
 
 ```bash
-pip install --pre QCOM
+pip install QCOM
 ```
 
 ## Confirm Installation
