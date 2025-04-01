@@ -8,7 +8,7 @@ QCOM enables users to compute exact results for model Hamiltonians, analyze prob
 
 ## Installation
 
-You can install the latest pre-release of QCOM directly from PyPI:
+You can install the latest release of QCOM directly from PyPI:
 
 ```bash
 pip install --pre QCOM
@@ -76,4 +76,4 @@ The unit tests included in this repository are designed to verify that core func
 
 QCOM is an active work in progress. New features will be added to meet the evolving needs of the Meurice Group or other researchers. Suggestions, bug reports, and collaborations are welcome.
 
-**Last updated:** March 27, 2025
+**Last updated:** March 31, 2025
