@@ -8,7 +8,7 @@ Functions for computing classical information measures in a systems. This will b
 """
 
 
-def compute_shannon_entropy(prob_dict):
+def compute_shannon_entropy(prob_dict, total_prob=1):
     """
     Computes the Shannon entropy of a probability distribution.
 
@@ -18,7 +18,7 @@ def compute_shannon_entropy(prob_dict):
     Returns:
         float: Shannon entropy.
     """
-    total_prob = sum(prob_dict.values())
+
     entropy = -sum(
         (p / total_prob) * np.log(p / total_prob) for p in prob_dict.values() if p > 0
     )
@@ -89,7 +89,7 @@ def compute_reduced_shannon_entropy(prob_dict, configuration, target_region):
     return reduced_entropy
 
 
-def compute_mutual_information(prob_dict, configuration):
+def compute_mutual_information(prob_dict, configuration, total_count=1):
     """
     Computes the classical mutual information between two regions.
 
@@ -101,7 +101,7 @@ def compute_mutual_information(prob_dict, configuration):
         tuple: (mutual information, Shannon entropy of A, Shannon entropy of B, Shannon entropy of AB)
     """
     # Compute full system entropy
-    shan_AB = compute_shannon_entropy(prob_dict)
+    shan_AB = compute_shannon_entropy(prob_dict, total_count)
 
     # Compute reduced Shannon entropy for region A and B
     shan_A = compute_reduced_shannon_entropy(prob_dict, configuration, target_region=0)
@@ -113,7 +113,7 @@ def compute_mutual_information(prob_dict, configuration):
     return mutual_information
 
 
-def compute_conditional_entropy(prob_dict, configuration):
+def compute_conditional_entropy(prob_dict, configuration, total_count=1):
     """
     Computes the conditional entropy of region A given region B.
 
@@ -125,13 +125,34 @@ def compute_conditional_entropy(prob_dict, configuration):
         float: Conditional entropy of region A given region B.
     """
     # Compute full system entropy
-    shan_AB = compute_shannon_entropy(prob_dict)
+    shan_AB = compute_shannon_entropy(prob_dict, total_count)
     # Compute reduced Shannon entropy for region B
     shan_B = compute_reduced_shannon_entropy(prob_dict, configuration, target_region=1)
 
     # Compute conditional entropy
     conditional_entropy = shan_AB - shan_B
     return conditional_entropy
+
+
+def cumulative_probability_at_value(binary_dict, value):
+    """
+    Compute the cumulative sum of probabilities in binary_dict that are less than or equal to the given value.
+
+    Args:
+        binary_dict (dict): A dictionary where keys are binary strings representing states,
+                            and values are their corresponding probabilities.
+        value (float): The threshold probability.
+
+    Returns:
+        float: The cumulative sum of probabilities (i.e., the sum of all probabilities <= value).
+    """
+    # Convert the dictionary values to a numpy array for easy filtering
+    probabilities = np.array(list(binary_dict.values()))
+
+    # Filter and sum all probabilities that are less than or equal to 'value'
+    cumulative_sum = np.sum(probabilities[probabilities <= value])
+
+    return cumulative_sum
 
 
 def cumulative_distribution(binary_dict):
@@ -175,6 +196,12 @@ def compute_N_of_p_all(probabilities, p_delta=0.1, show_progress=False):
     Returns:
         tuple: (unique_probs, N_values)
     """
+
+    # Check if probabilites is a dictionary
+    if isinstance(probabilities, dict):
+        # Extract values from the dictionary
+        probabilities = list(probabilities.values())
+
     probs = np.array(probabilities)
     probs = probs[probs > 0]
     sorted_probs = np.sort(probs)
