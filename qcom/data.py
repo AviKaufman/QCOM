@@ -200,7 +200,7 @@ def combine_datasets(data1, data2, tol=1e-6, update_interval=100, show_progress=
 
 def truncate_probabilities(input_dict, threshold):
     """
-    Truncate the input dictionary by removing entries with probabilities less than the specified threshold.
+    Truncate the input dictionary by removing entries with probabilities less than the specified threshold. Do not renormalize.
 
     Args:
         input_dict (dict): Dictionary with binary sequences as keys and probabilities as values.
@@ -212,21 +212,11 @@ def truncate_probabilities(input_dict, threshold):
     # Initialize an empty dictionary to store the truncated results
     truncated_dict = {}
 
-    # Track total probability to renormalize later
-    total_prob = 0
-
     # Iterate through the input dictionary
     for binary_sequence, probability in input_dict.items():
         # Check if the probability meets the threshold
         if probability >= threshold:
             # Add the entry to the truncated dictionary
             truncated_dict[binary_sequence] = probability
-            # increment total prob
-            total_prob += probability
-
-    # renormalize using calculated total_prob
-    if total_prob != 1:
-        for key in truncated_dict.keys():
-            truncated_dict[key] /= total_prob
 
     return truncated_dict
