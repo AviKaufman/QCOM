@@ -13,6 +13,10 @@ def normalize_to_probabilities(data, total_count):
     Returns:
         normalized_data (dict): A dictionary with probabilities.
     """
+    ### Check it total_count was provided and is not zero
+    if total_count is None:
+        raise ValueError("Total count must be provided for normalization.")
+    ### Check if total_count is zero
     if total_count == 0:
         raise ValueError("Total count is zero; cannot normalize to probabilities.")
     normalized_data = {key: value / total_count for key, value in data.items()}
@@ -33,7 +37,7 @@ def sample_data(
         show_progress (bool, optional): Whether to display progress updates.
 
     Returns:
-        dict: A dictionary mapping sampled bit strings to their probabilities.
+        dict: A dictionary mapping sampled bit strings to their counts.
     """
     normalized_data = normalize_to_probabilities(data, total_count)
     sequences = list(normalized_data.keys())
@@ -58,65 +62,39 @@ def sample_data(
         if show_progress:
             ProgressManager.update_progress(sample_size)  # Ensure 100% completion
 
-    total_sampled_count = sum(sampled_dict.values())
-    return {key: count / total_sampled_count for key, count in sampled_dict.items()}
+    return sampled_dict
 
 
-def introduce_error_data(
-    data,
-    total_count,
-    ground_rate=0.01,
-    excited_rate=0.08,
-    update_interval=100,
-    show_progress=False,
-):
+def introduce_error(
+    data: dict[str, int], ground_rate: float = 0.01, excited_rate: float = 0.08
+) -> dict[str, int]:
     """
-    Introduce bit-flipping errors to the dataset with separate error rates for ground and excited states.
-
-    If a bit is '1', it has an 'excited_rate' chance of being flipped to '0'.
-    Conversely, if a bit is '0', it has a 'ground_rate' chance of being flipped to '1'.
+    Simulate readout error by Monte Carlo, shot-by-shot.
 
     Args:
-        data (dict): Dictionary of raw counts.
-        total_count (float): Sum of all counts (used for normalization).
-        ground_rate (float, optional): Probability of a '0' flipping to '1'. Default is 0.01.
-        excited_rate (float, optional): Probability of a '1' flipping to '0'. Default is 0.08.
-        update_interval (int, optional): Number of sequences before updating progress.
-        show_progress (bool, optional): Whether to display progress updates.
+        data:          dict mapping bit-strings to integer counts.
+        ground_rate:   P(read 0→1).
+        excited_rate:  P(read 1→0).
 
     Returns:
-        dict: A dictionary with probabilities after errors are introduced.
+        dict of bit-strings → new integer counts after simulated errors.
     """
-    print("Introducing errors to the data...")
-    normalized_data = normalize_to_probabilities(data, total_count)
-    new_data = {}
-    sequences = list(normalized_data.keys())
+    new_counts: dict[str, int] = {}
+    for state, count in data.items():
+        for _ in range(count):
+            bits = list(state)
+            # flip each bit independently
+            for i, b in enumerate(bits):
+                if b == "1":
+                    if random.random() < excited_rate:
+                        bits[i] = "0"
+                else:  # b == "0"
+                    if random.random() < ground_rate:
+                        bits[i] = "1"
+            new_state = "".join(bits)
+            new_counts[new_state] = new_counts.get(new_state, 0) + 1
 
-    with (
-        ProgressManager.progress("Introducing errors", total_steps=len(sequences))
-        if show_progress
-        else ProgressManager.dummy_context()
-    ):
-        for idx, sequence in enumerate(sequences):
-            modified_sequence = list(sequence)
-
-            for i in range(len(modified_sequence)):
-                if modified_sequence[i] == "1" and random.random() < excited_rate:
-                    modified_sequence[i] = "0"
-                elif modified_sequence[i] == "0" and random.random() < ground_rate:
-                    modified_sequence[i] = "1"
-
-            new_sequence = "".join(modified_sequence)
-            new_data[new_sequence] = new_data.get(new_sequence, 0) + 1
-
-            if show_progress and idx % update_interval == 0:
-                ProgressManager.update_progress(idx + 1)
-
-        if show_progress:
-            ProgressManager.update_progress(len(sequences))  # Ensure 100% completion
-
-    total_new_count = sum(new_data.values())
-    return {key: count / total_new_count for key, count in new_data.items()}
+    return new_counts
 
 
 def print_most_probable_data(normalized_data, n=10):

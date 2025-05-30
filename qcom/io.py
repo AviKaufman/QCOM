@@ -2,24 +2,19 @@ import random
 import os
 from .progress import ProgressManager
 import pandas as pd
+import json
 
 """
 I/O functions for loading and saving external data files
 """
 
 
-def parse_file(
-    file_path, sample_size=None, update_interval=500000, show_progress=False
-):
+def parse_file(file_path, update_interval=500000, show_progress=False):
     """
-    Parse the file and optionally sample data while reading.
-
-    This version streams the file line by line and updates progress only every
-    update_interval lines based on the file's byte size.
+    Parse the file and return counts for every binary sequence.
 
     Args:
         file_path (str): Path to the input file.
-        sample_size (int, optional): Number of samples to retain (None means full processing).
         update_interval (int, optional): Number of lines before updating progress.
         show_progress (bool, optional): Whether to display progress updates.
 
@@ -29,7 +24,6 @@ def parse_file(
     """
     data = {}
     total_count = 0.0
-    valid_lines = 0
 
     file_size = os.path.getsize(file_path)
     bytes_read = 0
@@ -44,29 +38,20 @@ def parse_file(
                 bytes_read += len(line)
                 if show_progress and idx % update_interval == 0:
                     ProgressManager.update_progress(bytes_read)
-                try:
-                    line = line.strip()
-                    if not line:
-                        continue
 
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
                     binary_sequence, count_str = line.split()
                     count = float(count_str)
-                    total_count += count
-                    valid_lines += 1
-
-                    if sample_size and len(data) < sample_size:
-                        data[binary_sequence] = count
-                    elif sample_size:
-                        # Reservoir sampling using the count of valid lines.
-                        replace_idx = random.randint(0, valid_lines - 1)
-                        if replace_idx < sample_size:
-                            keys = list(data.keys())
-                            data[keys[replace_idx]] = count
-                    else:
-                        data[binary_sequence] = count
-
-                except Exception as e:
+                except ValueError as e:
                     print(f"Error reading line '{line}' in {file_path}: {e}")
+                    continue
+
+                data[binary_sequence] = data.get(binary_sequence, 0.0) + count
+                total_count += count
 
             if show_progress:
                 ProgressManager.update_progress(file_size)
@@ -102,6 +87,58 @@ def parse_parq(file_name, show_progress=False):
             ProgressManager.update_progress(2)
 
     return data_dict
+
+
+def parse_json(file_path, sorted=True, update_interval=10, show_progress=False):
+    """
+    Parse the Aquilla JSON file and return the binary sequence and its associated probability.
+    Aquilla returns a JSON file which contains all the information on the submitted quantum task.
+    This function only returns the states amd their probabilities.
+
+    Args:
+        file_path (str): Path to the input JSON file.
+        sorted (bool, optional): Whether or not to remove presequences which have missing atoms.
+        update_interval (int, optional): Number of lines before updating progress.
+        show_progress (bool, optional): Whether to display progress updates.
+
+    Returns:
+        data (dict): A dictionary mapping binary sequences to their probabilities.
+        total_count (float): The sum of number of shots.
+    """
+    data = {}
+    total_count = 0.0
+
+    with open(file_path, "r") as f:
+        json_data = json.load(f)
+    total_steps = len(json_data["measurements"])
+
+    with (
+        ProgressManager.progress("Parsing JSON file", total_steps)
+        if show_progress
+        else ProgressManager.dummy_context()
+    ):
+
+        for idx, line in enumerate(json_data["measurements"]):
+            if show_progress and idx % update_interval == 0:
+                ProgressManager.update_progress(idx + 1)
+            try:
+                pre_sequence = line["shotResult"]["preSequence"]
+                # throw out the line if it is not a valid pre_sequence
+                if sorted and sum(pre_sequence) != len(pre_sequence):
+                    continue
+                postSequence = line["shotResult"]["postSequence"]
+                # invert binary (0 -> 1, 1 -> 0)
+                postSequence = [1 - x for x in postSequence]
+                bitString = "".join(str(x) for x in postSequence)
+                total_count += 1
+                if bitString in data:
+                    data[bitString] += 1
+                else:
+                    data[bitString] = 1
+            except Exception as e:
+                print(f"Error reading measurement '{line}' in {file_path}: {e}")
+
+    return data, total_count
 
 
 def save_data(data, savefile, update_interval=100, show_progress=False):

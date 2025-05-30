@@ -115,117 +115,82 @@ def build_rydberg_hamiltonian_ladder(
     num_atoms, Omega, Delta, a, rho=2, pbc=False, show_progress=False
 ):
     """
-    Constructs the Hamiltonian for the Rydberg model on a ladder configuration with horizontal,
-    vertical, and diagonal interactions between atoms, including both direct and periodic images
-    when pbc=True.
+    Same API as before, but much faster by precomputing all local ops
+    and all distances exactly once.
     """
+    assert num_atoms % 2 == 0, "Need even num_atoms for ladder."
 
-    assert (
-        num_atoms % 2 == 0
-    ), "Number of atoms must be even for a ladder configuration."
-
+    # constants
     C6 = 5420503
-    sigma_x = csr_matrix([[0, 1], [1, 0]])
-    sigma_z = csr_matrix([[1, 0], [0, -1]])
-    identity_2 = identity(2, format="csr")
+    # single-site building blocks
+    σx = csr_matrix([[0, 1], [1, 0]])
+    σz = csr_matrix([[1, 0], [0, -1]])
+    I2 = identity(2, format="csr")
+    nm = (I2 - σz) * 0.5  # projector onto |r>
 
-    # precompute columns
-    ncol = num_atoms // 2
+    Ncol = num_atoms // 2
 
-    # count how many interactions we’ll insert:
-    total_pairs = num_atoms * (num_atoms - 1) // 2
-    verticals = ncol  # one vertical per column
-    # every non-vertical pair gets TWO terms if pbc, otherwise 1
-    extra_images = (total_pairs - verticals) if pbc else 0
-    total_steps = num_atoms + num_atoms + total_pairs + extra_images
-    step = 0
+    # 1) precompute all single-site X_k and n_k operators
+    X_ops = []
+    n_ops = []
+    for k in range(num_atoms):
+        # build list of length num_atoms, only slot k is non-identity
+        ops_x = [I2] * num_atoms
+        ops_n = [I2] * num_atoms
+        ops_x[k] = σx
+        ops_n[k] = nm
 
-    hamiltonian = csr_matrix((2**num_atoms, 2**num_atoms))
+        # kron them all
+        A = ops_x[0]
+        B = ops_n[0]
+        for m in range(1, num_atoms):
+            A = kron(A, ops_x[m], format="csr")
+            B = kron(B, ops_n[m], format="csr")
+        X_ops.append(A)
+        n_ops.append(B)
 
-    with (
-        ProgressManager.progress("Building Rydberg Hamiltonian (Ladder)", total_steps)
-        if show_progress
-        else ProgressManager.dummy_context()
-    ):
-        # 1) driving
-        for k in range(num_atoms):
-            op = identity(1, format="csr")
-            for j in range(num_atoms):
-                op = kron(op, sigma_x if j == k else identity_2, format="csr")
-            hamiltonian += (Omega / 2) * op
-            step += 1
-            if show_progress:
-                ProgressManager.update_progress(step)
+    # 2) precompute all pairwise distances (and their interaction strengths)
+    pairs = []
+    for i in range(num_atoms):
+        ci, ri = divmod(i, 2)
+        for j in range(i + 1, num_atoms):
+            cj, rj = divmod(j, 2)
+            dx = abs(ci - cj)
+            dy = abs(ri - rj)
 
-        # 2) detuning
-        for k in range(num_atoms):
-            op = identity(1, format="csr")
-            for j in range(num_atoms):
-                op = kron(
-                    op,
-                    (identity_2 - sigma_z) / 2 if j == k else identity_2,
-                    format="csr",
-                )
-            hamiltonian -= Delta * op
-            step += 1
-            if show_progress:
-                ProgressManager.update_progress(step)
+            # direct
+            if dy == 0 and dx > 0:
+                d1 = dx * a
+            elif dx == 0 and dy == 1:
+                d1 = rho * a
+            else:
+                d1 = np.hypot(dx * a, rho * a)
+            V1 = C6 / (d1**6)
+            pairs.append((i, j, V1))
 
-        # helper
-        def construct_interaction(i, j, dist):
-            V = C6 / (dist**6)
-            op_i = identity(1, format="csr")
-            op_j = identity(1, format="csr")
-            for m in range(num_atoms):
-                nm = (identity_2 - sigma_z) / 2
-                op_i = kron(op_i, nm if m == i else identity_2, format="csr")
-                op_j = kron(op_j, nm if m == j else identity_2, format="csr")
-            return V * op_i * op_j
-
-        # 3) all‐to‐all interactions + periodic images
-        for i in range(num_atoms):
-            col_i, row_i = divmod(i, 2)
-            for j in range(i + 1, num_atoms):
-                col_j, row_j = divmod(j, 2)
-
-                dx_raw = abs(col_i - col_j)
-                dy = abs(row_i - row_j)
-
-                # direct distance
-                if dy == 0 and dx_raw > 0:
-                    d1 = dx_raw * a  # horizontal
-                elif dx_raw == 0 and dy == 1:
-                    d1 = rho * a  # vertical
+            # PBC wrap in x direction
+            if pbc and dx > 0:
+                dx_wrap = abs(Ncol - dx)
+                if dy == 0:
+                    d2 = dx_wrap * a
                 else:
-                    d1 = np.sqrt((dx_raw * a) ** 2 + (rho * a) ** 2)  # diagonal
+                    d2 = np.hypot(dx_wrap * a, rho * a)
+                V2 = C6 / (d2**6)
+                pairs.append((i, j, V2))
 
-                hamiltonian += construct_interaction(i, j, d1)
-                step += 1
-                if show_progress:
-                    ProgressManager.update_progress(step)
+    # 3) build H by summing the three parts
+    H = csr_matrix((2**num_atoms, 2**num_atoms))
+    #   a) driving
+    for Xk in X_ops:
+        H += (Omega / 2) * Xk
+    #   b) detuning
+    for nk in n_ops:
+        H -= Delta * nk
+    #   c) interactions
+    for i, j, Vij in pairs:
+        H += Vij * (n_ops[i].multiply(n_ops[j]))  # element-wise is fine
 
-                # periodic‐image distance (only wrap in x-direction)
-                if pbc and dx_raw > 0:
-                    dx_wrap = abs(ncol - dx_raw)
-                    # same pattern: horizontal vs diag
-                    if dy == 0:
-                        d2 = dx_wrap * a
-                    elif dx_raw == 0:
-                        # vertical has no wrap
-                        continue
-                    else:
-                        d2 = np.sqrt((dx_wrap * a) ** 2 + (rho * a) ** 2)
-
-                    hamiltonian += construct_interaction(i, j, d2)
-                    step += 1
-                    if show_progress:
-                        ProgressManager.update_progress(step)
-
-        # finish up
-        if show_progress:
-            ProgressManager.update_progress(total_steps)
-
-    return hamiltonian
+    return H
 
 
 def build_ising_hamiltonian(num_spins, J, h, pbc=False, show_progress=False):

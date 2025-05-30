@@ -1,5 +1,6 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+qcom/__pycache__/
 *.py[cod]
 *$py.class
 
@@ -38,6 +39,7 @@ ENV/
 .nox/
 .cache/
 pytest_cache/
+tests/random_testing.ipynb
 
 # PyInstaller
 *.spec
