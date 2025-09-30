@@ -102,7 +102,7 @@ def print_most_probable_data(normalized_data, n=10):
     Print the n most probable bit strings with evenly spaced formatting.
     """
     sorted_data = sorted(normalized_data.items(), key=lambda x: x[1], reverse=True)
-    print(f"Most probable {n} bit strings:")
+    print(f"Top {n} Most probable bit strings:")
 
     # Find max index width (for up to 99, this is 2)
     max_index_width = len(str(n))

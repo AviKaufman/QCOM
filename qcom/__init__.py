@@ -13,7 +13,9 @@ __author__ = "Avi Kaufman"
 from .classical_info import *
 from .data import *
 from .hamiltonians import *
+from .hamiltonian import *
 from .io import *
 from .progress import *
 from .quantum_info import *
 from .utils import *
+from .atoms import *

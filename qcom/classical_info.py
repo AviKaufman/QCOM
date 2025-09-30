@@ -155,31 +155,91 @@ def cumulative_probability_at_value(binary_dict, value):
     return cumulative_sum
 
 
-def cumulative_distribution(binary_dict):
+import numpy as np
+
+
+def cumulative_distribution(binary_dict, bins=None, p_max=1.0):
     """
-    Compute the cumulative probability distribution from a given binary probability dictionary.
+    Compute a cumulative-distribution “step” from a dict of {state_str → probability}.
+    - If bins=None:  use the old behavior (unique probs + append (1,1)).
+    - If bins=N:     produce N log-spaced bin centers between p_min and 1.0,
+                     evaluate CDF at each center, normalize, then append (1,1).
 
     Args:
-        binary_dict (dict): A dictionary where keys are binary strings representing states,
-                            and values are their corresponding probabilities.
+        binary_dict (dict[str, float]):  keys are bit-strings, values must sum to 1.0.
+        bins (int or None):  if None, return the “unique-prob” CDF; else must be a
+                             positive integer N, returning an N+1-entry CDF on a fixed grid.
 
     Returns:
-        tuple: (x_axis, y_axis) representing the cumulative probability distribution.
+        (x_axis, y_axis) as two 1D numpy arrays of length
+        - bins=None:  len = (# unique probs) + 1
+        - bins=N:     len = N + 1
     """
-    # Extract and sort probabilities from the dictionary
-    probabilities = np.array(list(binary_dict.values()))
-    sorted_probs = np.sort(probabilities)
+    if not binary_dict:
+        raise ValueError("cumulative_distribution: input dict is empty")
 
-    # Compute cumulative distribution
-    unique_probs, counts = np.unique(sorted_probs, return_counts=True)
-    cumulative_prob = np.cumsum(unique_probs * counts)
+    # 1) Turn values into a NumPy array of probabilities
+    probs = np.array(list(binary_dict.values()), dtype=float)
+    # check that they sum to 1.0
+    if not np.isclose(np.sum(probs), 1.0):
+        raise ValueError("cumulative_distribution: input dict values must sum to 1.0")
 
-    # Normalize cumulative probability to ensure it ranges from 0 to 1
-    cumulative_prob /= cumulative_prob[-1]
+    if bins is None:
+        sorted_p = np.sort(probs)
+        unique_p, counts = np.unique(sorted_p, return_counts=True)
+        cumulative = np.cumsum(unique_p * counts, dtype=float)
+        cumulative /= cumulative[-1]  # ensure final = 1.0
 
-    # Ensure x-axis spans from the smallest probability to 1
-    x_axis = np.append(unique_probs, [1])
-    y_axis = np.append(cumulative_prob, [1])  # Ensure y-axis ends at 1
+        x_axis = np.append(unique_p, 1.0)
+        y_axis = np.append(cumulative, 1.0)
+        return x_axis, y_axis
+
+    N = int(bins)
+    if N < 2:
+        raise ValueError(
+            "cumulative_distribution: if 'bins' is specified, it must be an integer ≥ 2"
+        )
+
+    # 1) Find the smallest nonzero probability
+    positive = probs[probs > 0.0]
+    if positive.size == 0:
+        # If for some reason all entries are zero, choose a fallback p_min
+        p_min = 1.0 / N
+    else:
+        p_min = positive.min()
+
+    if p_max:
+        # find p_min in log10 space
+        log_p_max = np.log10(p_max)
+    else:
+        # If p_max is not specified, use 1.0 as the maximum probability
+        log_p_max = 0.0
+
+    # 2) Make exactly N log‐spaced points from p_min to 1.0 (inclusive)
+    #    np.logspace(log10(p_min), 0.0, num=N) gives N values, where
+    #      index 0 = 10^log10(p_min) = p_min,
+    #      index N−1 = 10^0 = 1.0.
+    x_axis = np.logspace(np.log10(p_min), log_p_max, num=N)
+
+    # 3) Compute CDF at each x_axis[i] = sum of all p ≤ x_axis[i].
+    sorted_p = np.sort(probs)
+    n = sorted_p.size
+    idx = 0
+    running_sum = 0.0
+
+    y_axis = np.zeros(N, dtype=float)
+    for i, c in enumerate(x_axis):
+        while idx < n and sorted_p[idx] <= c:
+            running_sum += sorted_p[idx]
+            idx += 1
+        y_axis[i] = running_sum
+
+    # 4) Normalize so that y_axis[-1] == 1.0 (if running_sum > 0)
+    if running_sum > 0.0:
+        y_axis /= running_sum
+    else:
+        # All probs were zero—leave y_axis as zeros (though this is unlikely)
+        pass
 
     return x_axis, y_axis
 
