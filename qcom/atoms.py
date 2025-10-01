@@ -1,274 +1,410 @@
 """
-This module contains the source code for the AtomRegister class, which is used to manage and manipulate
-atoms in a quantum system. The AtomRegister class provides methods for adding, removing, and manipulating atoms,
-as well as prebuilt geometries for common builds such as a chain, ladder, and square lattice.
+AtomRegister — explicit atom layouts for Hamiltonian builders (1D/2D/3D)
 
-It also includes methods for visualizing the atom register and saving it to a file.
-Future improvements may include adding more geometries, providing more advanced manipulation methods, and improving performance.
-For more information, please refer to the documentation.
+Goal
+-----
+Provide a transparent way to define a register of atoms that is guaranteed
+to be compatible with QCOM's Hamiltonian builders. The design makes it clear:
+
+  • Where each atom lives in space.
+  • Which qubit/bit in the computational basis corresponds to which atom.
+
+Key guarantees
+--------------
+• Dimensionality: Internally always 3D (shape (N, 3)), using SI meters.
+  If you only need 1D or 2D, supply coordinates with zeros in the unused axes.
+
+• Bitstring ↔ index mapping: Insertion order defines the index.
+  If you add atoms in the order A, B, C, then the resulting bitstring
+  (MSB=atom 0, by our convention) will unambiguously reflect that order.
+  There is no hidden reordering.
+
+• No conventions, no “rows/columns”: AtomRegister makes no attempt to define
+  grids, ladders, or canonical layouts. Arbitrary positions are supported,
+  and the user lives and dies by the order in which atoms were added.
+
+• No duplicates: exact coordinate duplicates are rejected.
+
+Hamiltonian-builder contract
+----------------------------
+An AtomRegister exposes:
+    - 'positions': np.ndarray, shape (N, 3), dtype float64, in meters
+    - '__len__()': returns N
+    - 'distances()': pairwise distance matrix in meters (NxN)
+
+Builders should depend only on this contract.
+
+Future extensions (non-breaking)
+--------------------------------
+• Tolerance-based duplicate detection or minimum-spacing checks.
+• Named atoms / tags with index maps (e.g., {"A0": 0, "A1": 1}).
+• Export/import: JSON, CSV, or QuEra/AHS-compatible formats.
+• Visualization helpers (2D/3D plots, blockade graphs).
 """
 
-import numpy as np
-import matplotlib.pyplot as plt
+# ------------------------------------------ Imports ------------------------------------------
 
+import numpy as np
+from collections.abc import Iterable
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D  # registers 3D projection
+
+# ------------------------------------------ AtomRegister Class ------------------------------------------
 
 class AtomRegister:
     """
-    Stores 2D atom positions and provides utilities for lattice generation, distance calculations,
-    editing, merging, and plotting.
-    """
+    AtomRegister — explicit atom layouts for Hamiltonian builders (1D/2D/3D).
 
-    def __init__(self, positions=None):
+    Conventions:
+      • Coordinates are 3D (x, y, z) in SI meters.
+      • Indexing is insertion order. (MSB ↔ atom 0 by QCOM convention.)
+    """
+    # ------------------------------------------ Construction and Attributes ------------------------------------------
+
+    def __init__(self, positions: Iterable[tuple[float, float, float]] | None = None):
         """
         Initialize an AtomRegister.
 
         Args:
-            positions (Optional[Union[List[Tuple[float, float]], numpy.ndarray]]):
-                An iterable of 2-tuples `(x, y)` or an array of shape `(N, 2)`
-                giving the coordinates of each atom in the register. If None,
-                creates an empty register to which atoms can be added.
+            positions (Optional[Iterable[Tuple[float, float, float]]]):
+                A sequence of 3D coordinates (x, y, z) in meters.
+                Each entry must be a tuple/list of three floats.
+                Example for one atom: [(0.0, 0.0, 0.0)]
+                Example for two atoms: [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)]
+                If None, an empty register is created.
 
         Raises:
-            ValueError: If `positions` is provided but cannot be converted to an Nx2 array.
+            ValueError:
+                - If 'positions' cannot be converted to an array of shape (N, 3).
+                - If any coordinate is non-finite (NaN or Inf).
+                - If duplicate coordinates are provided.
 
         Attributes:
-            positions (numpy.ndarray of shape (N, 2)):
-                The internal array of atom coordinates.
+            _pos (np.ndarray, shape (N, 3), dtype float64):
+                Internal mutable array of atom coordinates.
+
+            positions (np.ndarray, shape (N, 3), dtype float64, read-only view):
+                Read-only property exposing the atom coordinates to users.
+                Attempting in-place modification raises an error.
         """
         if positions is None:
-            self.positions = np.zeros((0, 2), dtype=float)
+            # Empty register: 0 rows, 3 columns (no atoms yet).
+            arr = np.zeros((0, 3), dtype=np.float64)
         else:
-            arr = np.array(positions, dtype=float)
-            if arr.ndim != 2 or arr.shape[1] != 2:
+            arr = np.array(positions, dtype=np.float64)
+
+            # Require a 2D matrix with 3 columns: (N, 3).
+            # If you intended a single site, call AtomRegister([(x, y, z)]).
+            if arr.ndim != 2 or arr.shape[1] != 3:
                 raise ValueError(
-                    "positions must be convertible to an array of shape (N,2)"
+                    "positions must be a 2D array of shape (N, 3). "
+                    "For a single site, pass [(x, y, z)], not (x, y, z)."
                 )
-            # --- duplicate check ---
+
+            # Require finite numeric coordinates (no NaN/Inf).
+            if not np.isfinite(arr).all():
+                raise ValueError("positions must contain only finite numbers (no NaN/Inf).")
+
+            # Exact duplicate check (no coordinate may appear twice).
             seen = {tuple(row) for row in arr}
             if len(seen) != arr.shape[0]:
-                raise ValueError("Duplicate atom positions are not allowed")
-            # -----------------------
-            self.positions = arr
+                raise ValueError("Duplicate atom positions are not allowed.")
 
-    def __len__(self):
-        """Return number of atoms."""
-        return len(self.positions)
+        # Normalize storage (internal, mutable).
+        self._pos = np.ascontiguousarray(arr, dtype=np.float64)
 
-    @classmethod
-    def chain(cls, n, a, y=0.0):
+    # ------------------------------------------ Properties ------------------------------------------
+
+    @property
+    def positions(self) -> np.ndarray:
         """
-        Create a 1D chain of atoms spaced along x at height y.
-
-        Args:
-            cls (Type[AtomRegister]):
-                The class on which this method is called. Used so that
-                subclasses calling this method return an instance of themselves.
-            n (int): Number of atoms in the chain.
-            a (float): Spacing between adjacent atoms.
-            y (float): Vertical offset for all atoms (default: 0.0).
+        Read-only view of atom positions.
 
         Returns:
-            AtomRegister:
-                A new AtomRegister containing the generated chain of atom positions.
+            np.ndarray: Array of shape (N, 3), dtype float64, in meters.
+                        Attempting to modify in place raises an error.
         """
-        positions = [(i * a, y) for i in range(n)]
-        return cls(positions)
+        view = self._pos.view()
+        view.setflags(write=False)  # freeze the view, not the internal array
+        return view
 
-    @classmethod
-    def ladder(cls, ncol, a, rho, y0=0.0):
+    # ------------------------------------------ Methods ------------------------------------------
+
+    def __len__(self) -> int:
+        """Return the number of atoms in the register."""
+        return self._pos.shape[0]
+
+    # ------------------------------------------ New Method ------------------------------------------
+
+    def add(self, position: tuple[float, float, float]) -> int:
         """
-        Create a 2D Ladder of atoms spaced by a along x at height y0.
+        Append a single atom to the register in insertion order.
 
         Args:
-            cls (Type[AtomRegister]):
-                The class on which this method is called. Used so that
-                subclasses calling this method return an instance of themselves.
-            ncol (int): Number of columns in the ladder.
-            a (float): Spacing between adjacent atoms in the x direction.
-            rho (float): Spacing between adjacent atoms in the y direction.
-            y0 (float): Vertical offset for all atoms (default: 0.0).
+            position (Tuple[float, float, float]):
+                The (x, y, z) coordinates in meters for the new atom.
 
         Returns:
-            AtomRegister:
-                A new AtomRegister containing the generated ladder of atom positions.
-        """
+            int:
+                The index assigned to the newly added atom (0-based).
+                Indexing follows insertion order (MSB ↔ atom 0 by QCOM convention).
 
-        positions = []
-        for i in range(ncol):
-            positions.append((i * a, y0))
-            positions.append((i * a, y0 + rho))
-        return cls(positions)
-
-    @classmethod
-    def grid(cls, nx, ny, a, x0=0.0, y0=0.0):
-        """
-        Create a rectangular grid of nx by ny atoms spaced by a,
-
-        Args:
-            cls (Type[AtomRegister]):
-                The class on which this method is called. Used so that
-                subclasses calling this method return an instance of themselves.
-            nx (int): Number of atoms in the x direction.
-            ny (int): Number of atoms in the y direction.
-            a (float): Spacing between adjacent atoms.
-            x0 (float): Horizontal offset for all atoms (default: 0.0).
-            y0 (float): Vertical offset for all atoms (default: 0.0).
-        Returns:
-            AtomRegister:
-                A new AtomRegister containing the generated grid of atom positions.
-
-        """
-
-        positions = []
-        for i in range(nx):
-            for j in range(ny):
-                positions.append((x0 + i * a, y0 + j * a))
-        return cls(positions)
-
-    def add(self, position):
-        """
-        Add a new atom at the specified (x, y) positon.
-        Args:
-            position (Tuple[float, float]): The (x, y) coordinates of the new atom.
         Raises:
-            ValueError: If position is not a 2-tuple or cannot be converted to a float.
-        """
-        if not isinstance(position, (tuple, list)) or len(position) != 2:
-            raise ValueError("position must be a 2-tuple or list")
-        pos = np.array(position, dtype=float)
-        # --- duplicate check ---
-        if np.any(np.all(self.positions == pos, axis=1)):
-            raise ValueError(f"Atom already exists at position {position}")
-        # -----------------------
-        self.positions = np.vstack([self.positions, pos])
+            ValueError:
+                - If 'position' is not a length-3 tuple/list.
+                - If any coordinate is non-finite (NaN or Inf).
+                - If an atom with exactly the same coordinates already exists.
 
-    def remove(self, index):
+        Notes:
+            - This method enforces strict 3D coordinates in SI units.
+            - Exact duplicates are not allowed (no tolerance).
+              If you need tolerance-based deduplication later, add a separate API.
+        """
+        # Validate container and length
+        if not isinstance(position, (tuple, list)) or len(position) != 3:
+            raise ValueError("add() expects a 3-tuple/list (x, y, z) in meters.")
+
+        # Convert and validate finiteness
+        p = np.asarray(position, dtype=np.float64)
+        if not np.isfinite(p).all():
+            raise ValueError("add() received non-finite coordinate (NaN/Inf).")
+
+        # Exact-duplicate check (strict, no tolerance).
+        # self._pos == p broadcasts p against each row of self._pos, producing an (N,3) boolean array.
+        # np.all(..., axis=1) yields an (N,) mask: True where a row matches p in all three coords.
+        # np.any(...) is True if any row matches => duplicate.
+        if self._pos.size and np.any(np.all(self._pos == p, axis=1)):
+            raise ValueError(f"Atom already exists at position {tuple(p)}")
+
+        # Append in insertion order (maintain contiguous float64 storage)
+        # _pos should always have shape (N, 3) with N being the number of atoms. If N=0 then we need to reshape p to be (1, 3) so that vstack works correctly.
+        if self._pos.shape[0] == 0:
+            self._pos = p.reshape(1, 3)
+        else:
+            # Stack row-wise so the new point p becomes the last row (preserving insertion order).
+            # np.vstack([self._pos, p]) requires p to be (1,3) or (3,) — NumPy will broadcast (3,) into a row.
+            # np.ascontiguousarray(...) enforces C-contiguous float64 storage (performance/interop); logic is unchanged. 
+            self._pos = np.ascontiguousarray(np.vstack([self._pos, p]), dtype=np.float64)
+
+        # Return index of the newly added atom
+        return self._pos.shape[0] - 1
+
+    # ------------------------------------------ New Method ------------------------------------------
+
+    def remove(self, index: int) -> int:
         """
         Remove the atom at the specified index.
 
         Args:
-            index (int): The index of the atom to remove.
+            index (int):
+                Zero-based index of the atom to remove.
+
+        Returns:
+            int:
+                The index that was removed (useful for logging).
 
         Raises:
-            IndexError: If index is out of bounds.
+            IndexError:
+                If 'index' is out of bounds.
         """
-        if index < 0 or index >= len(self.positions):
-            raise IndexError("index out of bounds")
-        self.positions = np.delete(self.positions, index, axis=0)
+        n = self._pos.shape[0]
+        if index < 0 or index >= n:
+            raise IndexError(f"remove(): index {index} out of bounds for N={n}")
 
-    def translate(self, dx, dy):
+        # Delete row and keep internal storage contiguous float64.
+        self._pos = np.ascontiguousarray(np.delete(self._pos, index, axis=0), dtype=np.float64)
+        return index
+    
+    # ------------------------------------------ New Method ------------------------------------------
+
+    def position(self, index: int) -> tuple[float, float, float]:
         """
-        Translate all atoms by (dx, dy).
+        Return the (x, y, z) coordinates (meters) of the atom at 'index'.
+
+        Raises:
+            IndexError: If 'index' is out of bounds.
+        """
+        n = self._pos.shape[0]
+        if index < 0 or index >= n:
+            raise IndexError(f"position(): index {index} out of bounds for N={n}")
+        x, y, z = map(float, self._pos[index])
+        return (x, y, z)
+
+    # ------------------------------------------ New Method ------------------------------------------
+
+    def as_array(self) -> np.ndarray:
+        """
+        Return a **copy** of the positions array with shape (N, 3).
+
+        Notes:
+            - This is a copy; modifying it will not affect the register.
+            - Use `.positions` property for a read-only view instead.
+        """
+        return self._pos.copy()
+    
+    # ------------------------------------------ New Method ------------------------------------------
+
+    def index_map(self, max_rows: int | None = None) -> str:
+        """
+        Return a formatted string mapping indices → (x, y, z) meters.
 
         Args:
-            dx (float): Change in x-coordinate.
-            dy (float): Change in y-coordinate.
-        """
-        self.positions += np.array([dx, dy])
+            max_rows (Optional[int]):
+                If provided, truncate the output to the first `max_rows` rows.
 
-    def distance(self, i, j):
-        """Compute Euclidean distance between atom i and atom j.
+        Example output:
+            index  x (m)           y (m)           z (m)
+            -----  --------------  --------------  --------------
+            0      0.000000e+00    0.000000e+00    0.000000e+00
+            1      5.000000e-06    0.000000e+00    0.000000e+00
+        """
+        X = self._pos
+        n = X.shape[0]
+        end = n if max_rows is None else min(max_rows, n)
+        lines = [
+            "index  x (m)           y (m)           z (m)",
+            "-----  --------------  --------------  --------------",
+        ]
+        for i in range(end):
+            x, y, z = X[i]
+            lines.append(f"{i:<5d}  {x:>14.6e}  {y:>14.6e}  {z:>14.6e}")
+        if end < n:
+            lines.append(f"... ({n - end} more)")
+        return "\n".join(lines)
+
+    # ------------------------------------------ New Method ------------------------------------------
+
+    def __repr__(self):
+        """
+        Return the official string representation of the AtomRegister.
+
+        Returns:
+            str:
+                A summary string including the number of atoms and a preview
+                of their coordinates. Called automatically by `repr(obj)` or `print(obj)`.
+        """
+        n = self._pos.shape[0]
+        head = min(3, n)
+        preview = ", ".join(
+            [f"({x:.3e},{y:.3e},{z:.3e})" for x, y, z in self._pos[:head]]
+        )
+        more = "" if head == n else f", ... +{n - head} more"
+        return f"AtomRegister(N={n}, positions=[{preview}{more}])"
+
+    # ------------------------------------------ New Method ------------------------------------------
+
+    def distance(self, i: int, j: int) -> float:
+        """
+        Euclidean distance between atom i and atom j (meters).
 
         Args:
             i (int): Index of the first atom.
             j (int): Index of the second atom.
-        Returns:
-            float: The Euclidean distance between the two atoms.
-        """
-        xi, yi = self.positions[i]
-        xj, yj = self.positions[j]
-        return np.hypot(xj - xi, yj - yi)
-
-    def distances(self):
-        """
-        Return full NxN matrix of pairwise distances.
 
         Returns:
-            numpy.ndarray: A 2D array of shape (N, N) where D[i, j] is the distance between atom i and atom j.
-        """
-        N = len(self)
-        D = np.zeros((N, N))
-        for i in range(N):
-            for j in range(N):
-                D[i, j] = self.distance(i, j)
-        return D
+            float: Distance in meters.
 
-    def extend(self, other):
+        Raises:
+            IndexError: If either index is out of bounds.
         """
-        Append all atoms from another AtomRegister into this one.
+        n = self._pos.shape[0]
+        if i < 0 or i >= n or j < 0 or j >= n:
+            raise IndexError(f"distance(): indices ({i}, {j}) out of bounds for N={n}")
+
+        xi, yi, zi = self._pos[i]
+        xj, yj, zj = self._pos[j]
+        dx, dy, dz = (xj - xi), (yj - yi), (zj - zi)
+        return float(np.sqrt(dx*dx + dy*dy + dz*dz))
+
+    # ------------------------------------------ New Method ------------------------------------------
+
+    def distances(self) -> np.ndarray:
+        """
+        Full pairwise Euclidean distance matrix (meters).
+
+        Returns:
+            np.ndarray: (N, N) array where D[i, j] is the distance between atoms i and j.
+
+        Notes:
+            - Uses vectorized broadcasting for efficiency.
+            - Output dtype is float64; diagonal entries are exactly 0.0.
+        """
+        X = self._pos  # shape (N, 3)
+        # Compute all pairwise differences: shape (N, N, 3)
+        diff = X[:, None, :] - X[None, :, :]
+        # Row-wise dot product along the last axis -> (N, N) of squared distances
+        D2 = np.einsum("ijk,ijk->ij", diff, diff, optimize=True)
+        # sqrt into float64 result
+        return np.sqrt(D2, dtype=np.float64)
+
+        # ------------------------------------------ New Method ------------------------------------------
+
+    def plot(self, show_index: bool = True, default_s: float = 200, **kwargs):
+        """
+        Visualize the atom register.
+
+        Behavior:
+            • If all z-coordinates are exactly 0.0 → use a 2D scatter plot.
+            • Otherwise → use a 3D scatter plot.
 
         Args:
-            other (AtomRegister): Another AtomRegister instance whose atoms will be added.
-        """
-        if not isinstance(other, AtomRegister):
-            raise ValueError("extend() argument must be an AtomRegister")
-        # --- duplicate check ---
-        for pos in other.positions:
-            if np.any(np.all(self.positions == pos, axis=1)):
-                raise ValueError(f"Atom already exists at position {tuple(pos)}")
-        # -----------------------
-        self.positions = np.vstack([self.positions, other.positions])
-
-    def __add__(self, other):
-        """
-        Return a new AtomRegister combining self and another.
-
-        Args:
-            other (AtomRegister): The other register to combine.
+            show_index (bool):
+                If True, annotate each atom with its index number.
+            default_s (float):
+                Default marker size if 's' is not passed via kwargs.
+            **kwargs:
+                Additional keyword arguments forwarded to `ax.scatter`.
 
         Returns:
-            AtomRegister: New register containing atoms from both.
-        """
-        if not isinstance(other, AtomRegister):
-            return NotImplemented
-        combined = np.vstack([self.positions, other.positions])
-        return self.__class__(combined)
+            matplotlib.axes.Axes or mpl_toolkits.mplot3d.Axes3D:
+                The axes object used for plotting.
 
-    def plot(self, ax=None, show_index=True, default_s=350, **kwargs):
+        Notes:
+            - Uses Times/serif font for consistency with publications.
+            - Equal aspect ratio is enforced for 2D plots.
+            - 3D plots cannot enforce aspect ratio equally in matplotlib,
+              but the visual is still informative.
         """
-        Scatter-plot the atom register in 2D, optionally annotating each atom
-        with its index. Markers are larger by default.
 
-        Args:
-            ax (matplotlib.axes.Axes, optional): The axes to plot on. If None, a new figure and axes are created.
-            show_index (bool): If True, draw the atom index in the center of each marker.
-            default_s (float): Default marker size (area) if 's' not provided in kwargs.
-            **kwargs: Additional keyword arguments passed to `ax.scatter` (e.g. c, marker, edgecolors).
-        Returns:
-            matplotlib.axes.Axes: The axes containing the scatter plot.
-        """
-        # force serif font
+        # Configure serif fonts globally for plots
         plt.rcParams["font.family"] = "serif"
         plt.rcParams["font.serif"] = ["Times New Roman"]
         plt.rcParams["mathtext.fontset"] = "stix"
 
-        if ax is None:
-            fig, ax = plt.subplots()
-
-        x, y = self.positions[:, 0], self.positions[:, 1]
-        # pull out size, or use our larger default
+        X = self._pos
         s = kwargs.pop("s", default_s)
-        scatter = ax.scatter(x, y, s=s, **kwargs)
 
-        if show_index:
-            # choose a contrasting color for the text (fall back to white)
-            text_color = kwargs.get("edgecolors", "white")
-            # scale font size proportional to marker diameter (~ sqrt(area))
-            font_sz = (s**0.5) * 0.6
-            for i, (xi, yi) in enumerate(self.positions):
-                ax.text(
-                    xi,
-                    yi,
-                    str(i),
-                    ha="center",
-                    va="center",
-                    fontsize=font_sz,
-                    color=text_color,
-                    weight="bold",
-                )
+        # Case 1: purely 2D (all z == 0)
+        if np.allclose(X[:, 2], 0.0):
+            fig, ax = plt.subplots()
+            scatter = ax.scatter(X[:, 0], X[:, 1], s=s, **kwargs)
 
-        ax.set_aspect("equal")
-        ax.set_title("Atom Register", fontsize=18)
-        ax.set_xlabel(r"$\mu$m", fontsize=18)
-        ax.set_ylabel(r"$\mu$m", fontsize=18)
-        return ax
+            if show_index:
+                font_sz = (s**0.5) * 0.6  # scale label with marker diameter
+                for i, (x, y, _) in enumerate(X):
+                    ax.text(x, y, str(i), ha="center", va="center",
+                            fontsize=font_sz, color="white", weight="bold")
+
+            ax.set_aspect("equal")
+            ax.set_title("Atom Register (2D)", fontsize=16)
+            ax.set_xlabel(r"$x$ (m)", fontsize=14)
+            ax.set_ylabel(r"$y$ (m)", fontsize=14)
+            return ax
+
+        # Case 2: general 3D
+        else:
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection="3d")
+            scatter = ax.scatter(X[:, 0], X[:, 1], X[:, 2], s=s, **kwargs)
+
+            if show_index:
+                font_sz = (s**0.5) * 0.4
+                for i, (x, y, z) in enumerate(X):
+                    ax.text(x, y, z, str(i), ha="center", va="center",
+                            fontsize=font_sz, color="black")
+
+            ax.set_title("Atom Register (3D)", fontsize=16)
+            ax.set_xlabel(r"$x$ (m)", fontsize=14)
+            ax.set_ylabel(r"$y$ (m)", fontsize=14)
+            ax.set_zlabel(r"$z$ (m)", fontsize=14)
+            return ax
