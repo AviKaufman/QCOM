@@ -39,7 +39,7 @@ ENV/
 .nox/
 .cache/
 pytest_cache/
-tests/random_testing.ipynb
+tests/testing_atoms.ipynb
 
 # PyInstaller
 *.spec

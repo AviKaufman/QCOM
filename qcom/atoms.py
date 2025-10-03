@@ -91,7 +91,8 @@ class AtomRegister:
             # Empty register: 0 rows, 3 columns (no atoms yet).
             arr = np.zeros((0, 3), dtype=np.float64)
         else:
-            arr = np.array(positions, dtype=np.float64)
+            rows = list(positions)                       # <-- accept generators / any iterable
+            arr = np.array(rows, dtype=np.float64)
 
             # Require a 2D matrix with 3 columns: (N, 3).
             # If you intended a single site, call AtomRegister([(x, y, z)]).
@@ -337,7 +338,22 @@ class AtomRegister:
         # sqrt into float64 result
         return np.sqrt(D2, dtype=np.float64)
 
-        # ------------------------------------------ New Method ------------------------------------------
+    # ------------------------------------------ New Method ------------------------------------------
+
+    def clear(self) -> None:
+        """
+        Remove **all** atoms from the register.
+
+        After calling this method:
+            • The register is empty (len(register) == 0).
+            • Internal storage is reset to shape (0, 3).
+
+        Returns:
+            None
+        """
+        self._pos = np.zeros((0, 3), dtype=np.float64)
+
+    # ------------------------------------------ New Method ------------------------------------------
 
     def plot(self, show_index: bool = True, default_s: float = 200, **kwargs):
         """
