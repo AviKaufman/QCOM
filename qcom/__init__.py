@@ -18,4 +18,4 @@ from .io import *
 from .progress import *
 from .quantum_info import *
 from .utils import *
-from .atoms import *
+from .lattice_register import *

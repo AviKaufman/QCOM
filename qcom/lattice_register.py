@@ -1,13 +1,13 @@
 """
-AtomRegister — explicit atom layouts for Hamiltonian builders (1D/2D/3D)
+LatticeRegister — explicit lattice-site layouts for Hamiltonian builders (1D/2D/3D)
 
 Goal
 -----
-Provide a transparent way to define a register of atoms that is guaranteed
+Provide a transparent way to define a register of lattice sites that is guaranteed
 to be compatible with QCOM's Hamiltonian builders. The design makes it clear:
 
-  • Where each atom lives in space.
-  • Which qubit/bit in the computational basis corresponds to which atom.
+  • Where each site lives in space.
+  • Which qubit/bit in the computational basis corresponds to which site.
 
 Key guarantees
 --------------
@@ -15,19 +15,19 @@ Key guarantees
   If you only need 1D or 2D, supply coordinates with zeros in the unused axes.
 
 • Bitstring ↔ index mapping: Insertion order defines the index.
-  If you add atoms in the order A, B, C, then the resulting bitstring
-  (MSB=atom 0, by our convention) will unambiguously reflect that order.
+  If you add sites in the order A, B, C, then the resulting bitstring
+  (MSB=site 0, by our convention) will unambiguously reflect that order.
   There is no hidden reordering.
 
-• No conventions, no “rows/columns”: AtomRegister makes no attempt to define
+• No conventions, no “rows/columns”: LatticeRegister makes no attempt to define
   grids, ladders, or canonical layouts. Arbitrary positions are supported,
-  and the user lives and dies by the order in which atoms were added.
+  and the user lives and dies by the order in which sites were added.
 
 • No duplicates: exact coordinate duplicates are rejected.
 
 Hamiltonian-builder contract
 ----------------------------
-An AtomRegister exposes:
+A LatticeRegister exposes:
     - 'positions': np.ndarray, shape (N, 3), dtype float64, in meters
     - '__len__()': returns N
     - 'distances()': pairwise distance matrix in meters (NxN)
@@ -37,7 +37,7 @@ Builders should depend only on this contract.
 Future extensions (non-breaking)
 --------------------------------
 • Tolerance-based duplicate detection or minimum-spacing checks.
-• Named atoms / tags with index maps (e.g., {"A0": 0, "A1": 1}).
+• Named sites / tags with index maps (e.g., {"A0": 0, "A1": 1}).
 • Export/import: JSON, CSV, or QuEra/AHS-compatible formats.
 • Visualization helpers (2D/3D plots, blockade graphs).
 """
@@ -49,28 +49,28 @@ from collections.abc import Iterable
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # registers 3D projection
 
-# ------------------------------------------ AtomRegister Class ------------------------------------------
+# ------------------------------------------ LatticeRegister Class ------------------------------------------
 
-class AtomRegister:
+class LatticeRegister:
     """
-    AtomRegister — explicit atom layouts for Hamiltonian builders (1D/2D/3D).
+    LatticeRegister — explicit lattice-site layouts for Hamiltonian builders (1D/2D/3D).
 
     Conventions:
       • Coordinates are 3D (x, y, z) in SI meters.
-      • Indexing is insertion order. (MSB ↔ atom 0 by QCOM convention.)
+      • Indexing is insertion order. (MSB ↔ site 0 by QCOM convention.)
     """
     # ------------------------------------------ Construction and Attributes ------------------------------------------
 
     def __init__(self, positions: Iterable[tuple[float, float, float]] | None = None):
         """
-        Initialize an AtomRegister.
+        Initialize a LatticeRegister.
 
         Args:
             positions (Optional[Iterable[Tuple[float, float, float]]]):
                 A sequence of 3D coordinates (x, y, z) in meters.
                 Each entry must be a tuple/list of three floats.
-                Example for one atom: [(0.0, 0.0, 0.0)]
-                Example for two atoms: [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)]
+                Example for one site: [(0.0, 0.0, 0.0)]
+                Example for two sites: [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)]
                 If None, an empty register is created.
 
         Raises:
@@ -81,21 +81,21 @@ class AtomRegister:
 
         Attributes:
             _pos (np.ndarray, shape (N, 3), dtype float64):
-                Internal mutable array of atom coordinates.
+                Internal mutable array of site coordinates.
 
             positions (np.ndarray, shape (N, 3), dtype float64, read-only view):
-                Read-only property exposing the atom coordinates to users.
+                Read-only property exposing the site coordinates to users.
                 Attempting in-place modification raises an error.
         """
         if positions is None:
-            # Empty register: 0 rows, 3 columns (no atoms yet).
+            # Empty register: 0 rows, 3 columns (no sites yet).
             arr = np.zeros((0, 3), dtype=np.float64)
         else:
             rows = list(positions)                       # <-- accept generators / any iterable
             arr = np.array(rows, dtype=np.float64)
 
             # Require a 2D matrix with 3 columns: (N, 3).
-            # If you intended a single site, call AtomRegister([(x, y, z)]).
+            # If you intended a single site, call LatticeRegister([(x, y, z)]).
             if arr.ndim != 2 or arr.shape[1] != 3:
                 raise ValueError(
                     "positions must be a 2D array of shape (N, 3). "
@@ -109,7 +109,7 @@ class AtomRegister:
             # Exact duplicate check (no coordinate may appear twice).
             seen = {tuple(row) for row in arr}
             if len(seen) != arr.shape[0]:
-                raise ValueError("Duplicate atom positions are not allowed.")
+                raise ValueError("Duplicate site positions are not allowed.")
 
         # Normalize storage (internal, mutable).
         self._pos = np.ascontiguousarray(arr, dtype=np.float64)
@@ -119,7 +119,7 @@ class AtomRegister:
     @property
     def positions(self) -> np.ndarray:
         """
-        Read-only view of atom positions.
+        Read-only view of site positions.
 
         Returns:
             np.ndarray: Array of shape (N, 3), dtype float64, in meters.
@@ -132,29 +132,29 @@ class AtomRegister:
     # ------------------------------------------ Methods ------------------------------------------
 
     def __len__(self) -> int:
-        """Return the number of atoms in the register."""
+        """Return the number of sites in the register."""
         return self._pos.shape[0]
 
     # ------------------------------------------ New Method ------------------------------------------
 
     def add(self, position: tuple[float, float, float]) -> int:
         """
-        Append a single atom to the register in insertion order.
+        Append a single site to the register in insertion order.
 
         Args:
             position (Tuple[float, float, float]):
-                The (x, y, z) coordinates in meters for the new atom.
+                The (x, y, z) coordinates in meters for the new site.
 
         Returns:
             int:
-                The index assigned to the newly added atom (0-based).
-                Indexing follows insertion order (MSB ↔ atom 0 by QCOM convention).
+                The index assigned to the newly added site (0-based).
+                Indexing follows insertion order (MSB ↔ site 0 by QCOM convention).
 
         Raises:
             ValueError:
                 - If 'position' is not a length-3 tuple/list.
                 - If any coordinate is non-finite (NaN or Inf).
-                - If an atom with exactly the same coordinates already exists.
+                - If a site with exactly the same coordinates already exists.
 
         Notes:
             - This method enforces strict 3D coordinates in SI units.
@@ -175,10 +175,10 @@ class AtomRegister:
         # np.all(..., axis=1) yields an (N,) mask: True where a row matches p in all three coords.
         # np.any(...) is True if any row matches => duplicate.
         if self._pos.size and np.any(np.all(self._pos == p, axis=1)):
-            raise ValueError(f"Atom already exists at position {tuple(p)}")
+            raise ValueError(f"Site already exists at position {tuple(p)}")
 
         # Append in insertion order (maintain contiguous float64 storage)
-        # _pos should always have shape (N, 3) with N being the number of atoms. If N=0 then we need to reshape p to be (1, 3) so that vstack works correctly.
+        # _pos should always have shape (N, 3) with N being the number of sites. If N=0 then we need to reshape p to be (1, 3) so that vstack works correctly.
         if self._pos.shape[0] == 0:
             self._pos = p.reshape(1, 3)
         else:
@@ -187,18 +187,18 @@ class AtomRegister:
             # np.ascontiguousarray(...) enforces C-contiguous float64 storage (performance/interop); logic is unchanged. 
             self._pos = np.ascontiguousarray(np.vstack([self._pos, p]), dtype=np.float64)
 
-        # Return index of the newly added atom
+        # Return index of the newly added site
         return self._pos.shape[0] - 1
 
     # ------------------------------------------ New Method ------------------------------------------
 
     def remove(self, index: int) -> int:
         """
-        Remove the atom at the specified index.
+        Remove the site at the specified index.
 
         Args:
             index (int):
-                Zero-based index of the atom to remove.
+                Zero-based index of the site to remove.
 
         Returns:
             int:
@@ -220,7 +220,7 @@ class AtomRegister:
 
     def position(self, index: int) -> tuple[float, float, float]:
         """
-        Return the (x, y, z) coordinates (meters) of the atom at 'index'.
+        Return the (x, y, z) coordinates (meters) of the site at 'index'.
 
         Raises:
             IndexError: If 'index' is out of bounds.
@@ -277,11 +277,11 @@ class AtomRegister:
 
     def __repr__(self):
         """
-        Return the official string representation of the AtomRegister.
+        Return the official string representation of the LatticeRegister.
 
         Returns:
             str:
-                A summary string including the number of atoms and a preview
+                A summary string including the number of sites and a preview
                 of their coordinates. Called automatically by `repr(obj)` or `print(obj)`.
         """
         n = self._pos.shape[0]
@@ -290,17 +290,17 @@ class AtomRegister:
             [f"({x:.3e},{y:.3e},{z:.3e})" for x, y, z in self._pos[:head]]
         )
         more = "" if head == n else f", ... +{n - head} more"
-        return f"AtomRegister(N={n}, positions=[{preview}{more}])"
+        return f"LatticeRegister(N={n}, positions=[{preview}{more}])"
 
     # ------------------------------------------ New Method ------------------------------------------
 
     def distance(self, i: int, j: int) -> float:
         """
-        Euclidean distance between atom i and atom j (meters).
+        Euclidean distance between site i and site j (meters).
 
         Args:
-            i (int): Index of the first atom.
-            j (int): Index of the second atom.
+            i (int): Index of the first site.
+            j (int): Index of the second site.
 
         Returns:
             float: Distance in meters.
@@ -324,7 +324,7 @@ class AtomRegister:
         Full pairwise Euclidean distance matrix (meters).
 
         Returns:
-            np.ndarray: (N, N) array where D[i, j] is the distance between atoms i and j.
+            np.ndarray: (N, N) array where D[i, j] is the distance between sites i and j.
 
         Notes:
             - Uses vectorized broadcasting for efficiency.
@@ -342,7 +342,7 @@ class AtomRegister:
 
     def clear(self) -> None:
         """
-        Remove **all** atoms from the register.
+        Remove **all** sites from the register.
 
         After calling this method:
             • The register is empty (len(register) == 0).
@@ -357,7 +357,7 @@ class AtomRegister:
 
     def plot(self, show_index: bool = True, default_s: float = 200, **kwargs):
         """
-        Visualize the atom register.
+        Visualize the lattice register.
 
         Behavior:
             • If all z-coordinates are exactly 0.0 → use a 2D scatter plot.
@@ -365,7 +365,7 @@ class AtomRegister:
 
         Args:
             show_index (bool):
-                If True, annotate each atom with its index number.
+                If True, annotate each site with its index number.
             default_s (float):
                 Default marker size if 's' is not passed via kwargs.
             **kwargs:
@@ -402,7 +402,7 @@ class AtomRegister:
                             fontsize=font_sz, color="white", weight="bold")
 
             ax.set_aspect("equal")
-            ax.set_title("Atom Register (2D)", fontsize=16)
+            ax.set_title("Lattice Register (2D)", fontsize=16)
             ax.set_xlabel(r"$x$ (m)", fontsize=14)
             ax.set_ylabel(r"$y$ (m)", fontsize=14)
             return ax
@@ -419,7 +419,7 @@ class AtomRegister:
                     ax.text(x, y, z, str(i), ha="center", va="center",
                             fontsize=font_sz, color="black")
 
-            ax.set_title("Atom Register (3D)", fontsize=16)
+            ax.set_title("Lattice Register (3D)", fontsize=16)
             ax.set_xlabel(r"$x$ (m)", fontsize=14)
             ax.set_ylabel(r"$y$ (m)", fontsize=14)
             ax.set_zlabel(r"$z$ (m)", fontsize=14)
