@@ -25,4 +25,4 @@ dependencies = [
 "Source" = "https://github.com/AviKaufman/QCOM"
 
 [tool.setuptools.packages.find]
-include = ["qcom"]
+include = ["qcom", "qcom.*"]

@@ -17,7 +17,7 @@ The Hamiltonian follows the standard form:
         + sum_{i<j} V_{ij} n_i n_j
 
 with:
-    n_i = (I + σ^z_i)/2
+    n_i = (I - σ^z_i)/2 
     V_{ij} = C6 / r_ij^6
 
 Inputs are taken from a `LatticeRegister` (positions in meters),
@@ -231,7 +231,7 @@ class RydbergHamiltonian:
             f"phi∈[{self.params.phi.min():.3e},{self.params.phi.max():.3e}])"
         )
 
-    # ------------------------------ Dense Backend ------------------------------
+        # ------------------------------ Dense Backend ------------------------------
 
     def to_dense(self) -> np.ndarray:
         """
@@ -256,22 +256,28 @@ class RydbergHamiltonian:
         H = np.zeros((dim, dim), dtype=dtype)
 
         # Pre-build single-site operator cache to avoid repeated kron chains
-        # Build σ^x_i, σ^y_i, n_i for each site i
+        # Build σ^x_i and n_i for each site i; build σ^y_i only if needed.
         x_ops = []
-        y_ops = []
         n_ops = []
         for i in range(N):
             x_ops.append(_kron_local_dense(N, i, _SIGMA_X, dtype))
-            y_ops.append(_kron_local_dense(N, i, _SIGMA_Y, dtype))
-            n_i = 0.5 * (_kron_local_dense(N, i, _I2, dtype) + _kron_local_dense(N, i, _SIGMA_Z, dtype))
+            n_i = 0.5 * (_kron_local_dense(N, i, _I2, dtype) - _kron_local_dense(N, i, _SIGMA_Z, dtype))
             n_ops.append(n_i)
+
+        y_ops = None
+        if use_complex:
+            y_ops = []
+            for i in range(N):
+                y_ops.append(_kron_local_dense(N, i, _SIGMA_Y, dtype))
 
         # Transverse drive: sum_i (Ω_i/2)[cos φ_i σx_i + sin φ_i σy_i]
         for i in range(N):
             ci = np.cos(self.params.phi[i])
             si = np.sin(self.params.phi[i])
-            term = (self.params.omega[i] / 2.0) * (ci * x_ops[i] + si * y_ops[i])
-            H += term.astype(dtype, copy=False)
+            term = (self.params.omega[i] / 2.0) * (ci * x_ops[i])
+            if use_complex and si != 0.0:
+                term = term + (self.params.omega[i] / 2.0) * (si * y_ops[i])
+            H += term  # already correct dtype
 
         # Detuning: - sum_i Δ_i n_i
         for i in range(N):
@@ -286,14 +292,22 @@ class RydbergHamiltonian:
                     continue
                 H += vij * (ni @ n_ops[j])
 
-        # Hermitian by construction
+        # If complex dtype was used but the result is numerically real, safely downcast.
+        if use_complex:
+            imax = float(np.max(np.abs(H.imag)))
+            rmax = float(np.max(np.abs(H.real)))
+            tol = 1e-12 * max(1.0, rmax)
+            if imax <= tol:
+                return H.real.astype(np.float64, copy=False)
+
         return H
 
-    # ------------------------------ Sparse Backend ------------------------------
+        # ------------------------------ Sparse Backend ------------------------------
 
     def to_sparse(self) -> "sp.csr_matrix":
         """
-        Materialize H as a sparse CSR matrix (SciPy).
+        Materialize H as a sparse CSR matrix (SciPy), built via bit-flip (flip table)
+        and diagonal accumulation. Matches the tutorial's 'flip table' logic.
 
         Returns:
             scipy.sparse.csr_matrix: Hermitian matrix in CSR format.
@@ -302,8 +316,9 @@ class RydbergHamiltonian:
             RuntimeError: if SciPy is not available.
 
         Notes:
-            • Still exponential size, but memory usage is reduced.
-            • Construction is based on Kronecker products of 2×2 sparse blocks.
+            • Still exponential in dimension (2^N), but only true nonzeros are generated.
+            • Drive term: O(N·2^N) off-diagonal nonzeros via single-bit flips.
+            • Diagonals (detuning + interactions): O(2^N) entries.
         """
         if sp is None:
             raise RuntimeError("SciPy is required for sparse Rydberg builders (pip install scipy).")
@@ -312,46 +327,162 @@ class RydbergHamiltonian:
         if N == 0:
             return sp.csr_matrix((1, 1), dtype=np.float64)
 
-        sx, sy, sz, ii = _sp_blocks()  # 2×2 CSR blocks
+        # Decide dtype (any nonzero sin(phi) -> complex entries from σ^y)
+        use_complex = _needs_complex(self.params.phi)
+        dtype = np.complex128 if use_complex else np.float64
 
-        # Build local projectors n_i = (I + σz)/2
-        n_blocks = [(ii + sz) * 0.5 for _ in range(N)]
-
-        # Precompute local σx_i, σy_i, n_i operators as sparse CSR matrices
-        x_ops = []
-        y_ops = []
-        n_ops = []
-        for i in range(N):
-            x_ops.append(_kron_local_sparse(N, i, sx))
-            y_ops.append(_kron_local_sparse(N, i, sy))
-            n_ops.append(_kron_local_sparse(N, i, n_blocks[i]))
-
-        # Accumulate
-        dtype = np.complex128 if _needs_complex(self.params.phi) else np.float64
         dim = 1 << N
-        H = sp.csr_matrix((dim, dim), dtype=dtype)
+        rows_parts = []
+        cols_parts = []
+        data_parts = []
 
-        # Transverse
-        for i in range(N):
-            ci = np.cos(self.params.phi[i])
-            si = np.sin(self.params.phi[i])
-            H = H + (self.params.omega[i] / 2.0) * (ci * x_ops[i] + si * y_ops[i])
+        # --- Drive term via one-bit flips (flip table) ---
+        r, c, d, dtype_drive = _drive_coo_from_bitflips(N, self.params.omega, self.params.phi)
+        # dtype_drive may be float if all phases yield real couplings
+        # promote to overall dtype if needed
+        if np.dtype(dtype_drive) != np.dtype(dtype):
+            d = d.astype(dtype, copy=False)
+        rows_parts.append(r)
+        cols_parts.append(c)
+        data_parts.append(d)
 
-        # Detuning
-        for i in range(N):
-            H = H - self.params.delta[i] * n_ops[i]
+        # --- Detuning diagonal: -Σ_i Δ_i n_i with n_i(b) = b_i ---
+        diag = _detuning_diagonal_from_bits(N, self.params.delta, dtype)
 
-        # Interactions
-        for i in range(N):
-            ni = n_ops[i]
-            for j in range(i + 1, N):
-                vij = self.params.vij[i, j]
-                if vij == 0.0:
-                    continue
-                H = H + vij * (ni @ n_ops[j])
+        # --- Interaction diagonal: Σ_{i<j} V_ij n_i n_j with n_i(b) = b_i ---
+        if np.any(self.params.vij):
+            diag += _interaction_diagonal_from_bits(N, self.params.vij, dtype)
+
+        # add diagonal into COO parts
+        idx = np.arange(dim, dtype=np.int64)
+        rows_parts.append(idx)
+        cols_parts.append(idx)
+        data_parts.append(diag)
+
+        # --- Assemble COO -> CSR ---
+        R = np.concatenate(rows_parts)
+        C = np.concatenate(cols_parts)
+        D = np.concatenate(data_parts).astype(dtype, copy=False)
+        H = sp.coo_matrix((D, (R, C)), shape=(dim, dim), dtype=dtype).tocsr()
+
+        # If complex but numerically real, downcast safely.
+        if H.dtype == np.complex128:
+            imax = float(np.max(np.abs(H.data.imag))) if H.data.size else 0.0
+            rmax = float(np.max(np.abs(H.data.real))) if H.data.size else 0.0
+            tol = 1e-12 * max(1.0, rmax)
+            if imax <= tol:
+                H = H.real.astype(np.float64, copy=False)
 
         return H
 
+# ------------------------------ HELPERS: Flip-Table Sparse Build ------------------------------
+
+def _drive_coo_from_bitflips(
+    N: int,
+    omega: np.ndarray,
+    phi: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.dtype]:
+    """
+    Build the drive term (Σ_i (Ω_i/2)[cos φ_i σ^x_i + sin φ_i σ^y_i]) directly
+    as COO triplets via one-bit flips.
+
+    Convention: MSB=0 (site 0 ↔ leftmost bit ↔ bit position N-1).
+    For each site i, flipping that bit connects basis states m ↔ n=m^(1<<(N-1-i)).
+
+    Upper-triangle entry (m<n): (Ω_i/2) e^{-i φ_i}
+    Lower-triangle entry (n>m): (Ω_i/2) e^{+i φ_i}
+    (Hermiticity is explicit.)
+
+    Returns:
+        rows, cols, data, dtype_of_data
+    """
+    dim = 1 << N
+    rows = []
+    cols = []
+    data = []
+
+    any_complex = np.any(np.sin(phi) != 0.0)
+
+    # Pre-allocate index vector once (re-used per site)
+    all_states = np.arange(dim, dtype=np.int64)
+
+    for i in range(N):
+        mask = 1 << (N - 1 - i)  # MSB=0 mapping
+
+        # Only generate each unordered pair once: choose 'm' with bit i == 0
+        m = all_states[(all_states & mask) == 0]
+        n = m ^ mask
+
+        # complex amplitudes
+        ci = np.cos(phi[i])
+        si = np.sin(phi[i])
+        up_val   = (omega[i] * 0.5) * (ci - 1j * si)  # upper triangle m->n
+        low_val  = (omega[i] * 0.5) * (ci + 1j * si)  # lower triangle n->m
+
+        # append both directions
+        rows.append(m); cols.append(n); data.append(np.full(m.size, up_val,  dtype=np.complex128))
+        rows.append(n); cols.append(m); data.append(np.full(m.size, low_val, dtype=np.complex128))
+
+    rows = np.concatenate(rows)
+    cols = np.concatenate(cols)
+    data = np.concatenate(data)
+
+    # If couplings are numerically real, drop imaginary part to keep float dtype
+    if not any_complex:
+        data = data.real.astype(np.float64, copy=False)
+        return rows, cols, data, np.float64
+
+    return rows, cols, data, np.complex128
+
+
+def _detuning_diagonal_from_bits(
+    N: int,
+    delta: np.ndarray,
+    dtype: np.dtype,
+) -> np.ndarray:
+    """
+    Diagonal array for -Σ_i Δ_i n_i with n_i(b) = b_i (bit i occupancy).
+    MSB=0 → bit position for site i is (N-1-i).
+    """
+    dim = 1 << N
+    diag = np.zeros(dim, dtype=dtype)
+    idx = np.arange(dim, dtype=np.int64)
+    for i in range(N):
+        mask = 1 << (N - 1 - i)
+        # subtract Δ_i where the bit is 1
+        diag -= delta[i] * ((idx & mask) != 0)
+    return diag
+
+
+def _interaction_diagonal_from_bits(
+    N: int,
+    vij: np.ndarray,
+    dtype: np.dtype,
+) -> np.ndarray:
+    """
+    Diagonal array for Σ_{i<j} V_ij n_i n_j with n_i(b) = b_i.
+    Vectorized over basis states using bit tests. MSB=0 convention.
+    """
+    dim = 1 << N
+    add_int = np.zeros(dim, dtype=dtype)
+    idx = np.arange(dim, dtype=np.int64)
+    # Precompute booleans for each bit once
+    bits_bool = []
+    for i in range(N):
+        mask = 1 << (N - 1 - i)
+        bits_bool.append((idx & mask) != 0)  # True if bit i is 1
+    # Accumulate pair contributions
+    for i in range(N):
+        bi = bits_bool[i]
+        if not np.any(bi):
+            continue
+        for j in range(i + 1, N):
+            v = vij[i, j]
+            if v == 0.0:
+                continue
+            # both bits 1 → contributes V_ij
+            add_int += v * (bi & bits_bool[j])
+    return add_int
 
 # ------------------------------ Kron Helpers (Dense) ------------------------------
 

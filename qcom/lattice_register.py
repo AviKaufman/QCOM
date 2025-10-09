@@ -377,7 +377,9 @@ class LatticeRegister:
 
         Notes:
             - Uses Times/serif font for consistency with publications.
-            - Equal aspect ratio is enforced for 2D plots.
+            - 2D plots use an equal aspect ratio when spans are non-degenerate.
+              If the y-span is (near) zero, the axis is automatically padded and the
+              aspect is relaxed to "auto" to keep points visible.
             - 3D plots cannot enforce aspect ratio equally in matplotlib,
               but the visual is still informative.
         """
@@ -401,7 +403,66 @@ class LatticeRegister:
                     ax.text(x, y, str(i), ha="center", va="center",
                             fontsize=font_sz, color="white", weight="bold")
 
-            ax.set_aspect("equal")
+            # --- Adaptive padding & aspect control -------------------------------------
+            # Compute spans and apply padding on BOTH axes. If one axis is (near) 1D,
+            # give the *used* axis a larger margin and the *unused* axis a small band
+            # centered on its data so the markers don't sit on the frame.
+            x = X[:, 0]; y = X[:, 1]
+            xmin, xmax = float(x.min()), float(x.max())
+            ymin, ymax = float(y.min()), float(y.max())
+            xspan = xmax - xmin
+            yspan = ymax - ymin
+
+            # Detect (near) 1D along each axis
+            tol_x = 1e-12 * max(1.0, abs(xmin), abs(xmax))
+            tol_y = 1e-12 * max(1.0, abs(ymin), abs(ymax))
+            near_zero_x = xspan <= tol_x
+            near_zero_y = yspan <= tol_y
+
+            # Fractions for padding
+            frac_used = 0.05     # margin on the axis that actually varies
+            frac_unused = 0.015  # narrow band for the axis that is effectively constant
+
+            if near_zero_x and near_zero_y:
+                # Single point: create a small square window around the point
+                x0 = 0.5 * (xmin + xmax)
+                y0 = 0.5 * (ymin + ymax)
+                # Use a nominal size based on 1.0 (data units) so something is visible
+                pad = 1.0
+                ax.set_xlim(x0 - pad, x0 + pad)
+                ax.set_ylim(y0 - pad, y0 + pad)
+                ax.set_aspect("auto")
+
+            elif near_zero_x and not near_zero_y:
+                # Vertical geometry (x almost constant)
+                x0 = 0.5 * (xmin + xmax)
+                pad_x = max(frac_unused * (yspan if yspan > 0 else 1.0), tol_x if tol_x > 0 else 1.0)
+                ax.set_xlim(x0 - pad_x, x0 + pad_x)
+
+                pad_y = frac_used * yspan if yspan > 0 else 1.0
+                ax.set_ylim(ymin - pad_y, ymax + pad_y)
+
+                ax.set_aspect("auto")
+
+            elif near_zero_y and not near_zero_x:
+                # Horizontal geometry (y almost constant)
+                y0 = 0.5 * (ymin + ymax)
+                pad_y = max(frac_unused * (xspan if xspan > 0 else 1.0), tol_y if tol_y > 0 else 1.0)
+                ax.set_ylim(y0 - pad_y, y0 + pad_y)
+
+                pad_x = frac_used * xspan if xspan > 0 else 1.0
+                ax.set_xlim(xmin - pad_x, xmax + pad_x)
+
+                ax.set_aspect("auto")
+
+            else:
+                # Genuinely 2D cloud
+                pad_x = frac_used * xspan if xspan > 0 else 1.0
+                pad_y = frac_used * yspan if yspan > 0 else 1.0
+                ax.set_xlim(xmin - pad_x, xmax + pad_x)
+                ax.set_ylim(ymin - pad_y, ymax + pad_y)
+                ax.set_aspect("equal")
+
             ax.set_title("Lattice Register (2D)", fontsize=16)
             ax.set_xlabel(r"$x$ (m)", fontsize=14)
             ax.set_ylabel(r"$y$ (m)", fontsize=14)
