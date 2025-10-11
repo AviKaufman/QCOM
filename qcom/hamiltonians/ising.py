@@ -18,7 +18,6 @@ All materialization methods currently raise NotImplementedError.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 import warnings
 import numpy as np
@@ -44,12 +43,13 @@ class IsingHamiltonian(BaseHamiltonian):
     hz : float | np.ndarray | None
         Longitudinal field(s) along z.
     """
+
     register: LatticeRegister
     J: float | np.ndarray
     hx: float | np.ndarray | None = None
     hz: float | np.ndarray | None = None
 
-    # ---- Construction helpers -------------------------------------------------
+    # -------------------- Construction helpers --------------------
 
     @classmethod
     def from_register(
@@ -68,7 +68,7 @@ class IsingHamiltonian(BaseHamiltonian):
         )
         return cls(register=register, J=J, hx=hx, hz=hz)
 
-    # ---- BaseHamiltonian interface (stubbed) ---------------------------------
+    # -------------------- BaseHamiltonian interface (stubbed) --------------------
 
     def to_sparse(self):
         raise NotImplementedError("IsingHamiltonian.to_sparse is not implemented yet.")
@@ -79,6 +79,8 @@ class IsingHamiltonian(BaseHamiltonian):
     def to_linear_operator(self):
         raise NotImplementedError("IsingHamiltonian.to_linear_operator is not implemented yet.")
 
+
+# -------------------- Public convenience builder --------------------
 
 def build_ising(
     register: LatticeRegister,

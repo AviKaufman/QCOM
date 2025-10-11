@@ -155,9 +155,6 @@ def cumulative_probability_at_value(binary_dict, value):
     return cumulative_sum
 
 
-import numpy as np
-
-
 def cumulative_distribution(binary_dict, bins=None, p_max=1.0):
     """
     Compute a cumulative-distribution “step” from a dict of {state_str → probability}.

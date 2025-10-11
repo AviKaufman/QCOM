@@ -1,6 +1,6 @@
+# qcom/hamiltonians/rydberg.py
 """
 Rydberg Hamiltonian Builders
-============================
 
 Purpose
 -------
@@ -17,7 +17,7 @@ The Hamiltonian follows the standard form:
         + sum_{i<j} V_{ij} n_i n_j
 
 with:
-    n_i = (I - σ^z_i)/2 
+    n_i = (I - σ^z_i)/2
     V_{ij} = C6 / r_ij^6
 
 Inputs are taken from a `LatticeRegister` (positions in meters),
@@ -40,7 +40,7 @@ Design Philosophy
 • Backends:
   - `to_dense()`: exact matrix (2^N × 2^N), useful for ED and debugging.
   - `to_sparse()`: CSR matrix; still exponential in size but more memory efficient.
-  - Hooks are straightforward for future backends (e.g., Krylov matvec, MPS/TN).
+    Uses a flip-table build for the transverse drive to avoid unnecessary kron work.
 
 • Broadcasting: scalars automatically expand to arrays for site dependence,
   keeping simple use cases concise while preserving flexibility.
@@ -56,20 +56,22 @@ Future Extensions (non-breaking)
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, Optional
 
 import numpy as np
 
-try:
-    import scipy.sparse as sp  # optional; only needed for sparse backend
-except Exception:  # pragma: no cover
-    sp = None  # handled at call site
-
-# Local import: the public register type
+# -------------------- Local imports --------------------
 from ..lattice_register import LatticeRegister
 
+# For type-checking only (avoids importing SciPy at runtime for annotations)
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:  # pragma: no cover
+    from scipy.sparse import csr_matrix
 
-# ------------------------------ Utilities ------------------------------
+import scipy.sparse as sp  # type: ignore
+
+
+# -------------------- Utilities --------------------
 
 def _as_1d_float_array(x: float | Iterable[float], n: int, name: str) -> np.ndarray:
     """
@@ -114,7 +116,7 @@ def _sp_blocks():  # pragma: no cover - trivial
     return sx, sy, sz, ii
 
 
-# ------------------------------ Data Object ------------------------------
+# -------------------- Data Object --------------------
 
 @dataclass(frozen=True)
 class RydbergParams:
@@ -133,6 +135,8 @@ class RydbergParams:
     vij:   np.ndarray
 
 
+# -------------------- Main Class --------------------
+
 class RydbergHamiltonian:
     """
     Object-first Rydberg Hamiltonian.
@@ -142,8 +146,7 @@ class RydbergHamiltonian:
     Provides materialization methods to build dense or sparse matrices.
     """
 
-    # ------------------------------ Construction ------------------------------
-
+    # -------------------- Construction --------------------
     def __init__(self, register: LatticeRegister, params: RydbergParams):
         if len(register) != params.omega.size:
             raise ValueError("Parameter length mismatch with register size")
@@ -166,18 +169,6 @@ class RydbergHamiltonian:
         """
         Build a `RydbergHamiltonian` by broadcasting per-site parameters and
         precomputing interactions from positions.
-
-        Args:
-            register: LatticeRegister providing positions (meters).
-            C6: van der Waals coefficient (rad·s⁻¹·m⁶).
-            Omega: scalar or (N,) array of Ω_i (rad/s).
-            Delta: scalar or (N,) array of Δ_i (rad/s).
-            Phi:   scalar or (N,) array of φ_i (radians). Default 0.
-            cutoff: optional distance (meters). If set, interactions for r > cutoff
-                    are set to zero (sparsifies V_ij but matrix build is still O(N^2)).
-
-        Returns:
-            RydbergHamiltonian with broadcast parameters and V_ij matrix.
         """
         N = len(register)
         if N == 0:
@@ -211,8 +202,7 @@ class RydbergHamiltonian:
         )
         return cls(register, params)
 
-    # ------------------------------ Introspection ------------------------------
-
+    # -------------------- Introspection --------------------
     @property
     def N(self) -> int:
         """Number of sites."""
@@ -223,7 +213,7 @@ class RydbergHamiltonian:
         """Dimension of the computational basis (2^N)."""
         return 1 << self.N
 
-    def __repr__(self) -> str:  # concise debug string
+    def __repr__(self) -> str:
         return (
             f"RydbergHamiltonian(N={self.N}, "
             f"Omega∈[{self.params.omega.min():.3e},{self.params.omega.max():.3e}], "
@@ -231,8 +221,7 @@ class RydbergHamiltonian:
             f"phi∈[{self.params.phi.min():.3e},{self.params.phi.max():.3e}])"
         )
 
-        # ------------------------------ Dense Backend ------------------------------
-
+    # -------------------- Dense Backend --------------------
     def to_dense(self) -> np.ndarray:
         """
         Materialize H as a dense (2^N × 2^N) NumPy array.
@@ -256,7 +245,6 @@ class RydbergHamiltonian:
         H = np.zeros((dim, dim), dtype=dtype)
 
         # Pre-build single-site operator cache to avoid repeated kron chains
-        # Build σ^x_i and n_i for each site i; build σ^y_i only if needed.
         x_ops = []
         n_ops = []
         for i in range(N):
@@ -277,7 +265,7 @@ class RydbergHamiltonian:
             term = (self.params.omega[i] / 2.0) * (ci * x_ops[i])
             if use_complex and si != 0.0:
                 term = term + (self.params.omega[i] / 2.0) * (si * y_ops[i])
-            H += term  # already correct dtype
+            H += term
 
         # Detuning: - sum_i Δ_i n_i
         for i in range(N):
@@ -302,12 +290,11 @@ class RydbergHamiltonian:
 
         return H
 
-        # ------------------------------ Sparse Backend ------------------------------
-
+    # -------------------- Sparse Backend (flip-table build) --------------------
     def to_sparse(self) -> "sp.csr_matrix":
         """
         Materialize H as a sparse CSR matrix (SciPy), built via bit-flip (flip table)
-        and diagonal accumulation. Matches the tutorial's 'flip table' logic.
+        and diagonal accumulation.
 
         Returns:
             scipy.sparse.csr_matrix: Hermitian matrix in CSR format.
@@ -327,39 +314,33 @@ class RydbergHamiltonian:
         if N == 0:
             return sp.csr_matrix((1, 1), dtype=np.float64)
 
-        # Decide dtype (any nonzero sin(phi) -> complex entries from σ^y)
+        # dtype selection: any σ^y contribution forces complex
         use_complex = _needs_complex(self.params.phi)
         dtype = np.complex128 if use_complex else np.float64
 
         dim = 1 << N
-        rows_parts = []
-        cols_parts = []
-        data_parts = []
+        rows_parts: list[np.ndarray] = []
+        cols_parts: list[np.ndarray] = []
+        data_parts: list[np.ndarray] = []
 
-        # --- Drive term via one-bit flips (flip table) ---
+        # Drive term via one-bit flips
         r, c, d, dtype_drive = _drive_coo_from_bitflips(N, self.params.omega, self.params.phi)
-        # dtype_drive may be float if all phases yield real couplings
-        # promote to overall dtype if needed
         if np.dtype(dtype_drive) != np.dtype(dtype):
             d = d.astype(dtype, copy=False)
-        rows_parts.append(r)
-        cols_parts.append(c)
-        data_parts.append(d)
+        rows_parts.append(r); cols_parts.append(c); data_parts.append(d)
 
-        # --- Detuning diagonal: -Σ_i Δ_i n_i with n_i(b) = b_i ---
+        # Detuning diagonal: -Σ_i Δ_i n_i
         diag = _detuning_diagonal_from_bits(N, self.params.delta, dtype)
 
-        # --- Interaction diagonal: Σ_{i<j} V_ij n_i n_j with n_i(b) = b_i ---
+        # Interaction diagonal: Σ_{i<j} V_ij n_i n_j
         if np.any(self.params.vij):
             diag += _interaction_diagonal_from_bits(N, self.params.vij, dtype)
 
-        # add diagonal into COO parts
+        # Add diagonal triplets
         idx = np.arange(dim, dtype=np.int64)
-        rows_parts.append(idx)
-        cols_parts.append(idx)
-        data_parts.append(diag)
+        rows_parts.append(idx); cols_parts.append(idx); data_parts.append(diag)
 
-        # --- Assemble COO -> CSR ---
+        # Assemble COO -> CSR
         R = np.concatenate(rows_parts)
         C = np.concatenate(cols_parts)
         D = np.concatenate(data_parts).astype(dtype, copy=False)
@@ -375,7 +356,8 @@ class RydbergHamiltonian:
 
         return H
 
-# ------------------------------ HELPERS: Flip-Table Sparse Build ------------------------------
+
+# -------------------- HELPERS: Flip-Table Sparse Build --------------------
 
 def _drive_coo_from_bitflips(
     N: int,
@@ -402,24 +384,20 @@ def _drive_coo_from_bitflips(
     data = []
 
     any_complex = np.any(np.sin(phi) != 0.0)
-
-    # Pre-allocate index vector once (re-used per site)
     all_states = np.arange(dim, dtype=np.int64)
 
     for i in range(N):
         mask = 1 << (N - 1 - i)  # MSB=0 mapping
 
-        # Only generate each unordered pair once: choose 'm' with bit i == 0
+        # only generate each unordered pair once: choose 'm' with bit i == 0
         m = all_states[(all_states & mask) == 0]
         n = m ^ mask
 
-        # complex amplitudes
         ci = np.cos(phi[i])
         si = np.sin(phi[i])
-        up_val   = (omega[i] * 0.5) * (ci - 1j * si)  # upper triangle m->n
-        low_val  = (omega[i] * 0.5) * (ci + 1j * si)  # lower triangle n->m
+        up_val  = (omega[i] * 0.5) * (ci - 1j * si)  # m→n
+        low_val = (omega[i] * 0.5) * (ci + 1j * si)  # n→m
 
-        # append both directions
         rows.append(m); cols.append(n); data.append(np.full(m.size, up_val,  dtype=np.complex128))
         rows.append(n); cols.append(m); data.append(np.full(m.size, low_val, dtype=np.complex128))
 
@@ -427,7 +405,6 @@ def _drive_coo_from_bitflips(
     cols = np.concatenate(cols)
     data = np.concatenate(data)
 
-    # If couplings are numerically real, drop imaginary part to keep float dtype
     if not any_complex:
         data = data.real.astype(np.float64, copy=False)
         return rows, cols, data, np.float64
@@ -449,7 +426,6 @@ def _detuning_diagonal_from_bits(
     idx = np.arange(dim, dtype=np.int64)
     for i in range(N):
         mask = 1 << (N - 1 - i)
-        # subtract Δ_i where the bit is 1
         diag -= delta[i] * ((idx & mask) != 0)
     return diag
 
@@ -466,12 +442,13 @@ def _interaction_diagonal_from_bits(
     dim = 1 << N
     add_int = np.zeros(dim, dtype=dtype)
     idx = np.arange(dim, dtype=np.int64)
-    # Precompute booleans for each bit once
+
+    # Precompute bit-occupancy booleans once
     bits_bool = []
     for i in range(N):
         mask = 1 << (N - 1 - i)
-        bits_bool.append((idx & mask) != 0)  # True if bit i is 1
-    # Accumulate pair contributions
+        bits_bool.append((idx & mask) != 0)
+
     for i in range(N):
         bi = bits_bool[i]
         if not np.any(bi):
@@ -480,11 +457,11 @@ def _interaction_diagonal_from_bits(
             v = vij[i, j]
             if v == 0.0:
                 continue
-            # both bits 1 → contributes V_ij
             add_int += v * (bi & bits_bool[j])
     return add_int
 
-# ------------------------------ Kron Helpers (Dense) ------------------------------
+
+# -------------------- Kron Helpers (Dense) --------------------
 
 def _kron_local_dense(N: int, which: int, op2: np.ndarray, dtype) -> np.ndarray:
     """
@@ -495,11 +472,11 @@ def _kron_local_dense(N: int, which: int, op2: np.ndarray, dtype) -> np.ndarray:
     for site in range(N):
         block = op2 if site == which else _I2
         out = block if out is None else np.kron(out, block)
-    # Ensure final dtype matches requested dtype (promote if needed)
     return out.astype(dtype, copy=False)
 
 
-# ------------------------------ Kron Helpers (Sparse) ------------------------------
+# -------------------- (Legacy) Kron Helpers (Sparse) --------------------
+# Not used in the flip-table sparse builder, but kept for potential future use.
 
 def _kron_local_sparse(N: int, which: int, op2: "sp.csr_matrix") -> "sp.csr_matrix":
     """
@@ -516,7 +493,7 @@ def _kron_local_sparse(N: int, which: int, op2: "sp.csr_matrix") -> "sp.csr_matr
     return out
 
 
-# ------------------------------ Public Builder ------------------------------
+# -------------------- Public Builder --------------------
 
 def build_rydberg(
     register: LatticeRegister,
@@ -529,17 +506,6 @@ def build_rydberg(
 ) -> RydbergHamiltonian:
     """
     Convenience function to construct a `RydbergHamiltonian` from inputs.
-
-    Args:
-        register: LatticeRegister with positions (meters).
-        C6: van der Waals coefficient (rad·s⁻¹·m⁶).
-        Omega: scalar or (N,) array of Ω_i (rad/s).
-        Delta: scalar or (N,) array of Δ_i (rad/s).
-        Phi:   scalar or (N,) array of φ_i (radians). Default 0.
-        cutoff: optional distance (meters). Interactions beyond this are set to 0.
-
-    Returns:
-        RydbergHamiltonian: object-first container with precomputed interactions.
     """
     return RydbergHamiltonian.from_register(
         register, C6=C6, Omega=Omega, Delta=Delta, Phi=Phi, cutoff=cutoff

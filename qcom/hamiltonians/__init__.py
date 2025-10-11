@@ -30,6 +30,7 @@ Public API (re-exported lazily)
 """
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 __all__ = [
@@ -40,15 +41,14 @@ __all__ = [
     "build_rydberg",
 ]
 
-# Type-only imports (no runtime import cost)
+# -------------------- Type-only imports (no runtime import cost) --------------------
 if TYPE_CHECKING:
-    from ..lattice_register import LatticeRegister
     from .base import BaseHamiltonian
     from .ising import IsingHamiltonian
     from .rydberg import RydbergHamiltonian
 
 
-# --- Lazy attribute loader ----------------------------------------------------
+# -------------------- Lazy attribute loader --------------------
 def __getattr__(name: str):
     if name in {"BaseHamiltonian"}:
         from . import base as _base
@@ -67,10 +67,10 @@ def __getattr__(name: str):
 
 def __dir__():
     # Helps IDEs / tab-completion see the lazily exposed names
-    return sorted(list(globals().keys()) + __all__)
+    return sorted(set(list(globals().keys()) + __all__))
 
 
-# --- Convenience wrappers (remain lazy internally) ---------------------------
+# -------------------- Convenience wrappers (remain lazy internally) --------------------
 def build_ising(*args, **kwargs):
     """
     Convenience builder for the transverse-field Ising family.
