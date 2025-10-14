@@ -26,7 +26,7 @@ Functions
 """
 
 import numpy as np
-from .probabilities import order_dict, part_dict
+from .bitstrings import order_dict, part_dict
 
 
 # -------------------- Shannon Entropy --------------------

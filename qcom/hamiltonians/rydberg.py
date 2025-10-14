@@ -63,6 +63,8 @@ import numpy as np
 # -------------------- Local imports --------------------
 from ..lattice_register import LatticeRegister
 
+from .base import BaseHamiltonian
+
 # For type-checking only (avoids importing SciPy at runtime for annotations)
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:  # pragma: no cover
@@ -137,7 +139,7 @@ class RydbergParams:
 
 # -------------------- Main Class --------------------
 
-class RydbergHamiltonian:
+class RydbergHamiltonian(BaseHamiltonian):
     """
     Object-first Rydberg Hamiltonian.
 
@@ -204,18 +206,23 @@ class RydbergHamiltonian:
 
     # -------------------- Introspection --------------------
     @property
-    def N(self) -> int:
+    def num_sites(self) -> int:
         """Number of sites."""
         return len(self.register)
 
     @property
     def hilbert_dim(self) -> int:
         """Dimension of the computational basis (2^N)."""
-        return 1 << self.N
+        return 1 << self.num_sites
+
+    @property
+    def dtype(self) -> np.dtype:
+        # real if all sin(phi_i)=0, else complex
+        return np.complex128 if _needs_complex(self.params.phi) else np.float64
 
     def __repr__(self) -> str:
         return (
-            f"RydbergHamiltonian(N={self.N}, "
+            f"RydbergHamiltonian(N={self.num_sites}, "
             f"Omega∈[{self.params.omega.min():.3e},{self.params.omega.max():.3e}], "
             f"Delta∈[{self.params.delta.min():.3e},{self.params.delta.max():.3e}], "
             f"phi∈[{self.params.phi.min():.3e},{self.params.phi.max():.3e}])"
@@ -233,7 +240,7 @@ class RydbergHamiltonian:
             • Scales as O(2^N) memory and O(N·2^N) time.
             • For larger N, consider `to_sparse()` or matvec-based solvers.
         """
-        N = self.N
+        N = self.num_sites
         if N == 0:
             return np.zeros((1, 1), dtype=np.float64)
 
@@ -310,7 +317,7 @@ class RydbergHamiltonian:
         if sp is None:
             raise RuntimeError("SciPy is required for sparse Rydberg builders (pip install scipy).")
 
-        N = self.N
+        N = self.num_sites
         if N == 0:
             return sp.csr_matrix((1, 1), dtype=np.float64)
 

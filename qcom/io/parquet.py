@@ -29,7 +29,7 @@ from typing import Dict
 
 
 # -------------------- Parquet reader --------------------
-def parse_parq(file_name: str, show_progress: bool = False) -> Dict[str, float]:
+def parse_parquet(file_name: str, show_progress: bool = False) -> Dict[str, float]:
     """
     Read a Parquet file into a {state: probability} dictionary.
 

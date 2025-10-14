@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import numpy as np
 from .._internal.progress import ProgressManager
-from ..solvers.static import find_eigenstate
+from ..solvers.static import find_eigenstate, as_linear_operator
 
 
 # -------------------- Cumulative probability at a threshold --------------------
@@ -216,25 +216,49 @@ def compute_N_of_p(
 
 def get_eigenstate_probabilities(
     hamiltonian,
+    *,
     state_index: int = 0,
     show_progress: bool = False,
+    drop_tol: float = 0.0,
 ) -> dict[str, float]:
     """
     Compute |ψ|^2 in the computational basis for a chosen eigenstate.
 
+    Works with:
+      - NumPy dense arrays
+      - SciPy sparse matrices
+      - SciPy LinearOperator
+      - qcom.hamiltonians.BaseHamiltonian instances
+
     Args:
-        hamiltonian: Dense ndarray or sparse matrix (will be densified if needed).
+        hamiltonian: Hamiltonian-like object
         state_index: Which eigenstate to use (0 = ground).
         show_progress: Whether to display progress updates.
+        drop_tol: if > 0, omit entries with prob <= drop_tol.
 
     Returns:
-        dict[str, float]: Mapping "bitstring" -> probability.
+        dict[str, float]: Mapping "bitstring" -> probability (MSB=0).
     """
-    if not isinstance(hamiltonian, np.ndarray):
-        hamiltonian = hamiltonian.toarray()
+    # --- Determine Hilbert dimension robustly (no densification) ---
+    dim = None
+    try:
+        # Fast path for BaseHamiltonian
+        from ..hamiltonians.base import BaseHamiltonian
+        if isinstance(hamiltonian, BaseHamiltonian):
+            dim = hamiltonian.hilbert_dim
+    except Exception:
+        pass
 
-    num_qubits = int(np.log2(hamiltonian.shape[0]))
-    hilbert_dim = 1 << num_qubits
+    if dim is None:
+        # Dense, sparse, LinearOperator → normalize via as_linear_operator
+        _, _, dim = as_linear_operator(hamiltonian)
+
+    # Check it’s a power of two and get qubit count
+    n_qubits = int(np.round(np.log2(dim)))
+    if (1 << n_qubits) != dim:
+        raise ValueError(f"Hilbert dim {dim} is not a power of 2; cannot map to bitstrings.")
+
+    hilbert_dim = dim
     total_steps = 4 + hilbert_dim
     step = 0
 
@@ -243,25 +267,79 @@ def get_eigenstate_probabilities(
         if show_progress
         else ProgressManager.dummy_context()
     ):
-        # --- eigenstate ---
-        _, chosen_state = find_eigenstate(hamiltonian, state_index, show_progress)
+        # --- 1) Eigenstate (do NOT densify; find_eigenstate handles all backends) ---
+        _, chosen_state = find_eigenstate(
+            hamiltonian,
+            state_index=state_index,
+            show_progress=show_progress,
+        )
         step += 1
         if show_progress:
             ProgressManager.update_progress(min(step, total_steps))
 
-        # --- probabilities ---
-        probabilities = np.abs(chosen_state) ** 2
+        # --- 2) Probabilities |ψ|^2 and normalize ---
+        psi = np.asarray(chosen_state).reshape(-1)
+        probabilities = np.abs(psi) ** 2
+        s = float(probabilities.sum())
+        if s > 0.0:
+            probabilities /= s
         step += 1
         if show_progress:
             ProgressManager.update_progress(min(step, total_steps))
 
-        # --- map to bitstrings ---
-        state_prob_dict = {
-            format(i, f"0{num_qubits}b"): float(probabilities[i])
-            for i in range(hilbert_dim)
-        }
-        step += hilbert_dim
-        if show_progress:
+        # --- 3) Build mapping (MSB=0) ---
+        fmt = "{:0" + str(n_qubits) + "b}"
+        state_prob_dict: dict[str, float] = {}
+        thr = float(drop_tol)
+        for i in range(hilbert_dim):
+            p = float(probabilities[i])
+            if p > thr:
+                state_prob_dict[fmt.format(i)] = p
+            step += 1
+            if show_progress and (step % 1024 == 0 or i == hilbert_dim - 1):
+                # update periodically to avoid excessive overhead
+                ProgressManager.update_progress(min(step, total_steps))
+
+        # --- 4) Final update to hit total_steps exactly ---
+        if show_progress and step < total_steps:
             ProgressManager.update_progress(total_steps)
 
     return state_prob_dict
+
+# -------------------- Get State Probabilities --------------------
+
+def statevector_to_probabilities(psi: np.ndarray) -> dict[str, float]:
+    """
+    Convert a state vector into a dictionary of computational-basis probabilities.
+
+    Args
+    ----
+    psi : np.ndarray
+        State vector of shape (2^N,). Entries are complex amplitudes.
+
+    Returns
+    -------
+    dict[str, float]
+        Dictionary mapping bitstrings (e.g. "00", "01", "10", "11") to probabilities.
+        Probabilities are floats in [0,1] and sum to 1 (up to numerical error).
+
+    Notes
+    -----
+    - Convention: MSB ↔ site 0 (the same ordering as used by the solver).
+      Example: for N=2, index 2 (binary "10") means site 0 excited, site 1 ground.
+    """
+    psi = np.asarray(psi, dtype=np.complex128).reshape(-1)
+    dim = psi.shape[0]
+    if dim == 0 or (dim & (dim - 1)) != 0:
+        raise ValueError(f"State vector length {dim} is not a power of 2.")
+
+    N = int(np.log2(dim))
+    probs = np.abs(psi) ** 2
+    probs /= probs.sum()  # renormalize just in case
+
+    out = {}
+    for i, p in enumerate(probs):
+        if p > 0.0:
+            bitstring = format(i, f"0{N}b")
+            out[bitstring] = float(p)
+    return out

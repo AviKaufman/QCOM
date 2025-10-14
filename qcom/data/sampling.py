@@ -38,7 +38,7 @@ import random
 from typing import Dict, Union
 
 from .._internal import ProgressManager
-from ..metrics import normalize_to_probabilities
+from ..data.ops import normalize_to_probabilities
 
 
 # ========================================== Sampling Utilities ==========================================
