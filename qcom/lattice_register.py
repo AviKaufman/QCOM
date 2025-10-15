@@ -392,6 +392,16 @@ class LatticeRegister:
         X = self._pos
         s = kwargs.pop("s", default_s)
 
+        # Case 0: empty register
+        if X.shape[0] == 0:
+            fig, ax = plt.subplots()
+            ax.text(0.5, 0.5, "Empty LatticeRegister", ha="center", va="center",
+                    fontsize=16, color="gray", transform=ax.transAxes)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_frame_on(False)
+            return ax
+
         # Case 1: purely 2D (all z == 0)
         if np.allclose(X[:, 2], 0.0):
             fig, ax = plt.subplots()

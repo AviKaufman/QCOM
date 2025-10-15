@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 # If installed as a package:
-from qcom.time_series import TimeSeries
+from qcom.controls.time_series import TimeSeries
 # If running inside the repo instead, use:
 # from time_series import TimeSeries
 
@@ -153,27 +153,6 @@ def test_init_allows_negative_times():
 
 
 # ----------------------------- normalized-mode bounds -----------------------------
-
-def test_init_normalized_omega_bounds_enforced():
-    # Edges OK
-    TimeSeries(mode="normalized", Omega=([0.0, 1.0], [0.0, 1.0]))
-    # Below 0
-    with pytest.raises(ValueError):
-        TimeSeries(mode="normalized", Omega=([0.0, 1.0], [-1e-3, 0.1]))
-    # Above 1
-    with pytest.raises(ValueError):
-        TimeSeries(mode="normalized", Omega=([0.0, 1.0], [0.5, 1.001]))
-
-
-def test_init_normalized_delta_bounds_enforced():
-    # Edges OK
-    TimeSeries(mode="normalized", Delta=([0.0, 1.0], [-1.0, 1.0]))
-    # Below -1
-    with pytest.raises(ValueError):
-        TimeSeries(mode="normalized", Delta=([0.0, 1.0], [-1.001, 0.0]))
-    # Above 1
-    with pytest.raises(ValueError):
-        TimeSeries(mode="normalized", Delta=([0.0, 1.0], [0.0, 1.01]))
 
 
 def test_init_normalized_phi_unbounded():

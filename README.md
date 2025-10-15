@@ -1,79 +1,148 @@
 # QCOM
 
-**Quantum Computation (QCOM)** is a Python package developed as part of Avi Kaufman’s 2025 honors thesis in physics. Designed to support the **Meurice Research Group**, QCOM focuses on analyzing thermodynamic properties of quantum systems — particularly those involving neutral atom (Rydberg) platforms.
+[![PyPI version](https://img.shields.io/pypi/v/QCOM.svg)](https://pypi.org/project/QCOM/)
+[![Python versions](https://img.shields.io/pypi/pyversions/QCOM.svg)](https://pypi.org/project/QCOM/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/AviKaufman/QCOM/blob/main/LICENSE.txt)
 
-QCOM enables users to compute exact results for model Hamiltonians, analyze probability distributions from external sources such as DMRG or quantum hardware (e.g., QuEra’s Aquila), and calculate both classical and quantum information measures such as Shannon entropy, von Neumann entropy, and mutual information.
+**Quantum Computation (QCOM)** is a Python package originally developed as part of Avi Kaufman’s 2025 honors thesis, and now maintained as an **ongoing project for quantum systems research**.
+
+QCOM offers a lightweight, extensible toolkit for building model Hamiltonians, evolving states, and analyzing classical/quantum information measures from simulated or experimental bitstring data.
 
 ---
 
-## Installation
-
-You can install the latest release of QCOM directly from PyPI:
+## 📦 Installation
 
 ```bash
 pip install QCOM
 ```
 
-## Confirm Installation
+Upgrade to the latest release:
 
-In the python environement you've installed qcom, running the following code:
+```bash
+pip install --upgrade QCOM
+```
+
+
+⸻
+
+✅ Quick check in python
 
 ```python
 import qcom
-print(dir(qcom))
+print("QCOM version:", qcom.__version__)
 ```
 
-You should see an output like this:
 
-```text
+⸻
 
-['ProgressManager', '__author__', '__builtins__', '__cached__', '__doc__', '__file__', '__loader__', '__name__', '__package__', '__path__', '__spec__', '__version__', 'build_ising_hamiltonian', 'build_ising_hamiltonian_ladder', 'build_rydberg_hamiltonian_chain', 'build_rydberg_hamiltonian_ladder', 'classical_info', 'combine_datasets', 'compute_N_of_p', 'compute_N_of_p_all', 'compute_mutual_information', 'compute_reduced_density_matrix', 'compute_reduced_shannon_entropy', 'compute_shannon_entropy', 'contextmanager', 'create_density_matrix', 'csr_matrix', 'cumulative_distribution', 'data', 'eigsh', 'find_eigenstate', 'get_eigenstate_probabilities', 'hamiltonians', 'identity', 'introduce_error_data', 'io', 'kron', 'normalize_to_probabilities', 'np', 'order_dict', 'os', 'parse_file', 'parse_parq', 'part_dict', 'pd', 'print_most_probable_data', 'quantum_info', 'random', 'sample_data', 'save_data', 'save_dict_to_parquet', 'sys', 'time', 'utils', 'von_neumann_entropy_from_hamiltonian', 'von_neumann_entropy_from_rdm']
+## ✨ Core Capabilities
+
+- **Hamiltonians**
+  - Exact builders for **Rydberg** systems (chains/ladders)
+  - (Growing set) utilities to support additional models
+
+- **Solvers**
+  - *Static*: thin-spectrum eigen solve, ground-state utilities, dense full spectrum for small systems
+  - *Dynamic*: generic time evolution under time-dependent Hamiltonians via matrix exponentials
+
+- **Metrics**
+  - *Classical*: Shannon entropy, conditional entropy, mutual information
+  - *Quantum*: von Neumann entanglement entropy (from state vectors, density matrices, or Hamiltonians)
+  - *Probability tools*: cumulative distributions, N(p) diagnostic, statevector → probabilities
+
+- **Data & Noise**
+  - Parse/normalize/sample binary datasets (Plaintext, **Parquet**, **Aquila JSON**)
+  - Readout noise models (bit-flip) and optional mitigation via `mthree`
+
+- **I/O**
+  - Save/load in plaintext and Parquet
+  - Lightweight JSON reader for QuEra **Aquila** results
+
+- **Developer Ergonomics**
+  - `ProgressManager` hooks for long tasks
+  - Clear conventions (MSB ↔ site 0), endianness controls where relevant
+
+---
+
+## 🚀 Examples
+
+- Build a ladder Rydberg Hamiltonian and compute its ground-state entropy
+- Parse measurement data (e.g., from Aquila) and evaluate **mutual information**
+- Simulate **readout error** on a probability distribution and apply mitigation
+- Sample and **merge** large bitstring datasets for statistical analysis
+
+---
+
+## 📚 Tutorials
+
+Step-by-step notebooks live in the repository:
+
+- **Tutorials directory**:  
+  https://github.com/AviKaufman/QCOM/tree/main/tutorials
+
+Suggested order:
+1. I/O basics (text, JSON, Parquet)  
+2. Lattice registers and geometry  
+3. Rydberg Hamiltonians  
+4. Static eigen solvers (ground states)  
+5. Control time series  
+6. Dynamic time evolution  
+7. Data utilities (noise, sampling, mitigation)  
+8. Metrics (classical + entanglement)
+
+---
+
+## 🧪 Testing
+
+From the project root:
+
+```bash
+pytest
+# or restrict to the project tests folder
+pytest tests/
 ```
 
-## Core Capabilities
+If you see an “import file mismatch” error, clear caches:
 
-- Build exact Hamiltonians for:
-  - 1D Rydberg atom chains and ladders
-  - Quantum Ising models in chain and ladder geometries
+```bash
+find . -name "__pycache__" -type d -exec rm -rf {} +
+find . -name "*.pyc" -delete
+```
+⸻
 
-- Efficiently compute:
-  - Ground states and eigenstate properties
-  - Von Neumann entanglement entropy from a Hamiltonian or reduced density matrix
-  - Shannon entropy and mutual information from classical distributions
+📂 Example Data
 
-- Parse, normalize, and sample binary data from experimental or simulation sources
+Curated toy datasets for quick experiments:  
+- https://github.com/AviKaufman/QCOM/tree/main/example_data
 
-- Apply and study noise models (bit-flip errors) on binary datasets
+⸻
 
-- Save and load results in standard formats (`.txt`, `.parquet`)
+🗺️ Roadmap
+- New Hamiltonians: Ising, Heisenberg, and additional lattice models
+- Parameter sweeps for large optimization workloads
+- Tensor-network methods: DMRG / TEBD for large Hilbert spaces
+- Expanded I/O readers and richer plotting presets
 
-- Monitor long computations using a flexible `ProgressManager`
+Community feedback helps shape priorities—feel free to open issues or PRs.
 
----
+⸻
 
-## Example Use Cases
+🤝 Contributing
 
-- Construct a ladder Rydberg Hamiltonian and compute its ground state entropy  
-- Parse a binary probability dataset from an experiment and calculate classical mutual information  
-- Simulate the effects of readout error on a quantum distribution  
-- Combine or sample from large bitstring datasets for postprocessing
+We welcome contributions of all sizes:
+	•	Bug reports, minimal reproductions
+	•	Tests and doc improvements
+	•	New examples/tutorials
+	•	Feature proposals via GitHub Issues
 
----
+Repo: https://github.com/AviKaufman/QCOM
 
-## Tutorials
+⸻
 
+📬 Contact
 
+Avi Kaufman — avigkaufman@gmail.com
 
----
+⸻
 
-## Testing
-
-The unit tests included in this repository are designed to verify that core functions behave as expected under typical use cases. While they provide useful coverage of the package’s functionality, they are not exhaustive and do not guarantee the absence of logical errors in every edge case. Continued validation, peer review, and scientific scrutiny are encouraged to ensure the accuracy and reliability of the results produced by this package.
-
----
-
-## Project Status
-
-QCOM is an active work in progress. New features will be added to meet the evolving needs of the Meurice Group or other researchers. Suggestions, bug reports, and collaborations are welcome.
-
-**Last updated:** March 31, 2025
+Last updated: October 15, 2025

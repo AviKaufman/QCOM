@@ -31,65 +31,165 @@ Future directions
   - SPAM models with calibration-derived confusion matrices.
 • A subpackage structure (e.g., qcom/data/noise/...) grouping multiple
   noise models with shared utilities.
-
 """
 
-# ------------------------------------------ Imports ------------------------------------------
+from __future__ import annotations
 
+# ------------------------------------------ Imports ------------------------------------------
+from typing import Mapping, Sequence
 import random
 
+# ------------------------------------------ Helpers ------------------------------------------
+
+def _infer_num_sites(data: Mapping[str, int]) -> int:
+    if not data:
+        raise ValueError("Empty dataset: cannot infer number of sites.")
+    lengths = {len(k) for k in data.keys()}
+    if len(lengths) != 1:
+        raise ValueError(f"All bitstrings must have equal length; got lengths {sorted(lengths)}.")
+    return lengths.pop()
+
+def _broadcast_rates(
+    rate: float | Sequence[float] | Mapping[int, float],
+    N: int,
+    *,
+    default: float = 0.0,
+    name: str = "rate",
+) -> list[float]:
+    # scalar → broadcast
+    if isinstance(rate, (int, float)):
+        r = float(rate)
+        if not (0.0 <= r <= 1.0):
+            raise ValueError(f"{name} must be in [0,1]; got {r}.")
+        return [r] * N
+    # sequence → per-site
+    if isinstance(rate, Sequence) and not isinstance(rate, (str, bytes)):
+        if len(rate) != N:
+            raise ValueError(f"{name} sequence length {len(rate)} != N={N}.")
+        out = []
+        for i, r in enumerate(rate):
+            rr = float(r)
+            if not (0.0 <= rr <= 1.0):
+                raise ValueError(f"{name}[{i}] not in [0,1]: {rr}.")
+            out.append(rr)
+        return out
+    # mapping → sparse overrides
+    if isinstance(rate, Mapping):
+        out = [default] * N
+        for i, r in rate.items():
+            if not (0 <= int(i) < N):
+                raise ValueError(f"{name} dict key {i} out of range [0,{N-1}].")
+            rr = float(r)
+            if not (0.0 <= rr <= 1.0):
+                raise ValueError(f"{name}[{i}] not in [0,1]: {rr}.")
+            out[int(i)] = rr
+        return out
+    raise TypeError(f"{name}: expected float, sequence, or mapping; got {type(rate).__name__}.")
+
+def _confusion_matrices_from_rates(
+    ground_rate: float | Sequence[float] | Mapping[int, float],
+    excited_rate: float | Sequence[float] | Mapping[int, float],
+    N: int,
+) -> list:
+    import numpy as np
+    p01 = _broadcast_rates(ground_rate,  N, name="ground_rate")
+    p10 = _broadcast_rates(excited_rate, N, name="excited_rate")
+    mats = []
+    for i in range(N):
+        mats.append(
+            np.array([[1.0 - p01[i], p10[i]],
+                      [p01[i],       1.0 - p10[i]]], dtype=np.float32)
+        )
+    return mats
 
 # ------------------------------------------ Public API ------------------------------------------
 
 def introduce_error(
     data: dict[str, int],
-    ground_rate: float = 0.01,
-    excited_rate: float = 0.08,
+    ground_rate: float | Sequence[float] | Mapping[int, float] = 0.01,  # P(0→1)
+    excited_rate: float | Sequence[float] | Mapping[int, float] = 0.08, # P(1→0)
+    *,
+    seed: int | None = None,
 ) -> dict[str, int]:
     """
-    Apply an independent readout-error channel to classical bitstring counts.
-
-    For each shot (i.e., for each counted occurrence of a bitstring), every bit
-    is flipped independently according to:
-        - P(0 → 1) = ground_rate
-        - P(1 → 0) = excited_rate
-
-    This is a *Monte Carlo* (sampling) implementation: integer counts are
-    expanded implicitly shot-by-shot and re-accumulated after flips.
+    Monte-Carlo readout error on integer counts with **global or per-site** rates.
 
     Args:
-        data:
-            Mapping from bitstring -> integer count (e.g., {"0101": 12, ...}).
-        ground_rate:
-            Probability of flipping a measured '0' to '1' (0 ≤ rate ≤ 1).
-        excited_rate:
-            Probability of flipping a measured '1' to '0' (0 ≤ rate ≤ 1).
+        data: dict[bitstring, count], all bitstrings must share the same length.
+        ground_rate: P(measured '0' flips to '1'); float, per-site sequence, or {site: value} mapping.
+        excited_rate: P(measured '1' flips to '0'); float, per-site sequence, or {site: value} mapping.
+        seed: optional RNG seed for reproducibility.
 
     Returns:
-        dict[str, int]: New dictionary of bitstring counts after simulated readout errors.
-
-    Notes:
-        • If you want a *deterministic* transformation on a probability vector
-          (without Monte Carlo), consider implementing a confusion-matrix-based
-          linear map in a future probability-domain API.
-        • To make outcomes reproducible in tests, set a seed in the caller:
-              random.seed(1234)
+        dict[str, int]: New counts after simulated readout errors.
     """
-    new_counts: dict[str, int] = {}
+    N = _infer_num_sites(data)
+    p01 = _broadcast_rates(ground_rate,  N, name="ground_rate")
+    p10 = _broadcast_rates(excited_rate, N, name="excited_rate")
 
-    for state, count in data.items():
-        # Process each "shot" (occurrence) of this bitstring
-        for _ in range(count):
-            bits = list(state)
-            # Flip each bit independently according to its channel
+    rng = random.Random(seed)
+    out: dict[str, int] = {}
+
+    for bitstr, cnt in data.items():
+        bits = list(bitstr)
+        for _ in range(int(cnt)):
+            flip = bits[:]  # copy
             for i, b in enumerate(bits):
-                if b == "1":
-                    if random.random() < excited_rate:
-                        bits[i] = "0"
-                else:  # b == "0"
-                    if random.random() < ground_rate:
-                        bits[i] = "1"
-            new_state = "".join(bits)
-            new_counts[new_state] = new_counts.get(new_state, 0) + 1
+                if b == "0":
+                    if rng.random() < p01[i]:
+                        flip[i] = "1"
+                else:  # "1"
+                    if rng.random() < p10[i]:
+                        flip[i] = "0"
+            new = "".join(flip)
+            out[new] = out.get(new, 0) + 1
+    return out
 
-    return new_counts
+def m3_mitigate_counts_from_rates(
+    counts: dict[str, int],
+    *,
+    ground_rate: float | Sequence[float] | Mapping[int, float] = 0.01,
+    excited_rate: float | Sequence[float] | Mapping[int, float] = 0.08,
+    qubits: list[int] | None = None,
+) -> dict[str, float]:
+    """
+    Build per-qubit confusion matrices from {p01, p10} and run mthree mitigation.
+
+    Returns:
+        dict[str, float]: mitigated quasi-probabilities (clipped to ≥0 and re-normalized).
+    """
+    try:
+        import mthree
+        import numpy as np
+    except Exception as e:
+        raise ImportError(
+            "mthree is required for mitigation: pip install qiskit-addon-mthree"
+        ) from e
+
+    if not counts:
+        return {}
+
+    # Infer N and default qubit order [0..N-1]
+    lengths = {len(k) for k in counts}
+    if len(lengths) != 1:
+        raise ValueError(f"All bitstrings must have equal length; got lengths {sorted(lengths)}.")
+    N = lengths.pop()
+    meas_qubits = qubits if qubits is not None else list(range(N))
+
+    matrices = _confusion_matrices_from_rates(ground_rate, excited_rate, N)
+
+    mit = mthree.M3Mitigation()
+    mit.cals_from_matrices(matrices)
+
+    int_counts = {k: int(v) for k, v in counts.items()}
+    mitigated = mit.apply_correction(int_counts, meas_qubits)
+
+    out = {k: float(v) for k, v in mitigated.items()}
+    s = sum(out.values())
+    if s > 0.0:
+        # clip tiny negatives from quasi-probs and renormalize
+        out = {k: max(0.0, v) for k, v in out.items()}
+        s2 = sum(out.values())
+        if s2 > 0.0:
+            out = {k: v / s2 for k, v in out.items()}
+    return out

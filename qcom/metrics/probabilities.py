@@ -19,6 +19,19 @@ Notes
 - Inputs are assumed to be dictionaries mapping bit-strings (e.g., "0101")
   to probabilities that (usually) sum to 1.0.
 - `get_eigenstate_probabilities` depends on the static eigen-solver.
+
+Endianness
+----------
+- Throughout, the default convention is MSB ↔ site 0 (big-endian), matching the
+  solver’s basis ordering. Several routines offer `msb_site0=False` to flip to
+  “LSB ↔ site 0” (little-endian): this is implemented by reversing formatted
+  bitstrings only (no reindexing of the state vector).
+
+Log Bases
+---------
+- Unless otherwise stated, log grids and δ-widths are in base-10 (“log10”).
+  Where appropriate, a `base` (for grids) or `log_base` (for N(p)) argument is
+  included for forward compatibility; defaults preserve previous behavior.
 """
 
 from __future__ import annotations
@@ -47,32 +60,48 @@ def cumulative_probability_at_value(binary_dict: dict[str, float], value: float)
 
 # -------------------- Cumulative distribution (linear or log grid) --------------------
 
+# -------------------- Cumulative distribution (unique or user-supplied grid) --------------------
+
 def cumulative_distribution(
     binary_dict: dict[str, float],
-    bins: int | None = None,
-    p_max: float = 1.0,
+    grid: np.ndarray | list[float] | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Build a cumulative-distribution curve from {state -> probability}.
 
     Modes
     -----
-    - bins=None:
+    - grid=None:
         Return the “unique-probability” step function:
         x = sorted unique probabilities plus a final 1.0,
         y = cumulative mass at those x, normalized so y[-1] = 1.
-    - bins=N (N ≥ 2):
-        Return a fixed log-spaced grid of N points between p_min and p_max
-        (inclusive), where p_min is the smallest nonzero probability.
-        y[i] = sum_{p ≤ x[i]} p, normalized so y[-1] = 1.
+    - grid=array-like:
+        Treat `grid` as the exact probability thresholds at which to evaluate
+        the CDF. For each x in the (sorted) grid, y[i] = Σ_{p ≤ x} p. The
+        resulting y is normalized by the final running sum so that y[-1] = 1.0.
+        (This matches prior behavior where the fixed grid’s last point set the
+        normalization.)
 
     Args:
-        binary_dict: Keys are bit-strings; values must sum to 1.0.
-        bins: None for unique-prob mode, or an integer ≥ 2 for a fixed grid.
-        p_max: Upper bound for the log grid (default 1.0).
+        binary_dict: Keys are bit-strings; values must sum to 1.0 (within fp tol).
+        grid: Array-like of probability thresholds in (0, 1]; may be linear or
+              log-spaced. If you want a log grid, pass something like:
+                  # log10 grid
+                  np.logspace(np.log10(p_min), np.log10(1.0), num=N, base=10)
+                  # natural-log grid
+                  np.logspace(np.log(p_min), np.log(1.0), num=N, base=np.e)
+                  # base-2 grid
+                  np.logspace(np.log2(p_min), 0.0, num=N, base=2)
+              (Here p_min is the smallest nonzero probability you wish to include.)
 
     Returns:
         (x_axis, y_axis): 1D arrays of equal length.
+
+    Notes
+    -----
+    - Normalization uses a robust guard in case of tiny numerical drift and
+      guarantees y[-1] == 1.0 even if round-off leaves the final sum at zero.
+    - If `grid` contains unsorted values, they are internally sorted ascending.
     """
     if not binary_dict:
         raise ValueError("cumulative_distribution: input dict is empty")
@@ -81,30 +110,31 @@ def cumulative_distribution(
     if not np.isclose(np.sum(probs), 1.0):
         raise ValueError("cumulative_distribution: input values must sum to 1.0")
 
-    if bins is None:
+    if grid is None:
         sorted_p = np.sort(probs)
         unique_p, counts = np.unique(sorted_p, return_counts=True)
         cumulative = np.cumsum(unique_p * counts, dtype=float)
-        cumulative /= cumulative[-1]  # ensure final = 1.0
+        denom = cumulative[-1] if cumulative[-1] > 0 else np.finfo(float).tiny
+        cumulative /= denom  # ensure final = 1.0 (robust to numerical quirks)
         x_axis = np.append(unique_p, 1.0)
         y_axis = np.append(cumulative, 1.0)
         return x_axis, y_axis
 
-    N = int(bins)
-    if N < 2:
-        raise ValueError("cumulative_distribution: if 'bins' is specified, it must be an integer ≥ 2")
+    # Use user-supplied probability grid
+    x_axis = np.asarray(grid, dtype=float).reshape(-1)
+    if x_axis.size < 1:
+        raise ValueError("cumulative_distribution: provided grid is empty")
+    if np.any(x_axis <= 0) or np.any(x_axis > 1.0):
+        raise ValueError("cumulative_distribution: grid values must lie in (0, 1]")
 
-    positive = probs[probs > 0.0]
-    p_min = (1.0 / N) if positive.size == 0 else float(positive.min())
-
-    log_p_max = float(np.log10(p_max)) if p_max else 0.0
-    x_axis = np.logspace(np.log10(p_min), log_p_max, num=N)
+    # Ensure ascending thresholds
+    x_axis = np.sort(x_axis)
 
     sorted_p = np.sort(probs)
     n = sorted_p.size
     idx = 0
     running_sum = 0.0
-    y_axis = np.zeros(N, dtype=float)
+    y_axis = np.zeros_like(x_axis, dtype=float)
 
     for i, c in enumerate(x_axis):
         while idx < n and sorted_p[idx] <= c:
@@ -112,8 +142,10 @@ def cumulative_distribution(
             idx += 1
         y_axis[i] = running_sum
 
-    if running_sum > 0.0:
-        y_axis /= running_sum  # normalize so y[-1] = 1.0
+    # Robust normalization: guarantee y[-1] == 1.0
+    denom = running_sum if running_sum > 0.0 else np.finfo(float).tiny
+    y_axis = y_axis / denom
+    y_axis[-1] = 1.0
 
     return x_axis, y_axis
 
@@ -124,19 +156,25 @@ def compute_N_of_p_all(
     probabilities: dict[str, float] | np.ndarray | list[float],
     p_delta: float = 0.1,
     show_progress: bool = False,
+    *,
+    log_base: float = 10.0,
 ) -> tuple[np.ndarray, list[float]]:
     """
     Efficiently compute N(p) for each unique nonzero probability.
 
     Definition (heuristic)
     ----------------------
-    For a given p, define a log10 window [p*10^{-δ/2}, p*10^{+δ/2}] and compute
-    N(p) = (Σ_{q in window} q) / ((upper - lower) * p).
+    For a given p, define a log window
+        [ p * (log_base)^(-δ/2),  p * (log_base)^(+δ/2) ]
+    and compute
+        N(p) = (Σ_{q in window} q) / ( (upper - lower) * p ).
 
     Args:
         probabilities: Dict of probabilities or an array-like of probabilities.
-        p_delta: Width in log10 space (δ).
+        p_delta: Width δ in log space (default log_base = 10 → log10 units).
         show_progress: Whether to show a simple progress indicator.
+        log_base: Base of the logarithm used to define the multiplicative window.
+                  Defaults to 10.0 to match previous (log10) behavior.
 
     Returns:
         (unique_probs, N_values)
@@ -144,21 +182,32 @@ def compute_N_of_p_all(
     if isinstance(probabilities, dict):
         probabilities = list(probabilities.values())
 
+    if log_base <= 0.0 or log_base == 1.0:
+        raise ValueError("compute_N_of_p_all: 'log_base' must be > 0 and != 1.0")
+
     probs = np.array(probabilities, dtype=float)
     probs = probs[probs > 0.0]
+    if probs.size == 0:
+        return np.array([], dtype=float), []
+
     sorted_probs = np.sort(probs)
     cumulative_probs = np.cumsum(sorted_probs)
     unique_probs = np.unique(sorted_probs)
 
     def compute_single_N(p: float) -> float:
-        log_p = np.log10(p)
-        lower = 10 ** (log_p - p_delta / 2.0)
-        upper = 10 ** (log_p + p_delta / 2.0)
+        # window edges in the chosen base
+        b = float(log_base)
+        scale = b ** (p_delta / 2.0)
+        lower = p / scale
+        upper = p * scale
+
         lower_idx = int(np.searchsorted(sorted_probs, lower, side="left"))
         upper_idx = int(np.searchsorted(sorted_probs, upper, side="right"))
         sigma_lower = cumulative_probs[lower_idx - 1] if lower_idx > 0 else 0.0
         sigma_upper = cumulative_probs[upper_idx - 1] if upper_idx > 0 else 0.0
-        return float((sigma_upper - sigma_lower) / ((upper - lower) * p))
+
+        width = (upper - lower) * p
+        return float((sigma_upper - sigma_lower) / (width if width > 0 else np.finfo(float).tiny))
 
     N_values: list[float] = []
     total = len(unique_probs)
@@ -183,6 +232,8 @@ def compute_N_of_p(
     sorted_probs: np.ndarray,
     cumulative_probs: np.ndarray,
     p_delta: float = 0.1,
+    *,
+    log_base: float = 10.0,
 ) -> float:
     """
     Compute N(p) using precomputed sorted/cumulative arrays.
@@ -191,17 +242,22 @@ def compute_N_of_p(
         p: Probability at which to evaluate N(p).
         sorted_probs: Sorted array of nonzero probabilities.
         cumulative_probs: Cumulative sum of `sorted_probs`.
-        p_delta: Width in log10 space.
+        p_delta: Width δ in log space (default log_base = 10 → log10 units).
+        log_base: Base of the logarithm used to define the multiplicative window.
+                  Defaults to 10.0 to match previous (log10) behavior.
 
     Returns:
         float: N(p) value.
     """
     if p <= 0.0:
         return 0.0
+    if log_base <= 0.0 or log_base == 1.0:
+        raise ValueError("compute_N_of_p: 'log_base' must be > 0 and != 1.0")
 
-    log_p = np.log10(p)
-    lower = 10 ** (log_p - p_delta / 2.0)
-    upper = 10 ** (log_p + p_delta / 2.0)
+    b = float(log_base)
+    scale = b ** (p_delta / 2.0)
+    lower = p / scale
+    upper = p * scale
 
     lower_idx = int(np.searchsorted(sorted_probs, lower, side="left"))
     upper_idx = int(np.searchsorted(sorted_probs, upper, side="right"))
@@ -209,7 +265,9 @@ def compute_N_of_p(
     sigma_lower = cumulative_probs[lower_idx - 1] if lower_idx > 0 else 0.0
     sigma_upper = cumulative_probs[upper_idx - 1] if upper_idx > 0 else 0.0
 
-    return float((sigma_upper - sigma_lower) / ((upper - lower) * p))
+    width = (upper - lower) * p
+    denom = width if width > 0 else np.finfo(float).tiny
+    return float((sigma_upper - sigma_lower) / denom)
 
 
 # -------------------- Eigenstate probabilities (computational basis) --------------------
@@ -220,6 +278,7 @@ def get_eigenstate_probabilities(
     state_index: int = 0,
     show_progress: bool = False,
     drop_tol: float = 0.0,
+    msb_site0: bool = True,
 ) -> dict[str, float]:
     """
     Compute |ψ|^2 in the computational basis for a chosen eigenstate.
@@ -235,9 +294,12 @@ def get_eigenstate_probabilities(
         state_index: Which eigenstate to use (0 = ground).
         show_progress: Whether to display progress updates.
         drop_tol: if > 0, omit entries with prob <= drop_tol.
+        msb_site0: If True (default), format bitstrings with MSB ↔ site 0
+                   (big-endian). If False, flip to “LSB ↔ site 0” by reversing
+                   formatted bitstrings (little-endian).
 
     Returns:
-        dict[str, float]: Mapping "bitstring" -> probability (MSB=0).
+        dict[str, float]: Mapping "bitstring" -> probability.
     """
     # --- Determine Hilbert dimension robustly (no densification) ---
     dim = None
@@ -287,14 +349,17 @@ def get_eigenstate_probabilities(
         if show_progress:
             ProgressManager.update_progress(min(step, total_steps))
 
-        # --- 3) Build mapping (MSB=0) ---
+        # --- 3) Build mapping with selectable endianness ---
         fmt = "{:0" + str(n_qubits) + "b}"
         state_prob_dict: dict[str, float] = {}
         thr = float(drop_tol)
         for i in range(hilbert_dim):
             p = float(probabilities[i])
             if p > thr:
-                state_prob_dict[fmt.format(i)] = p
+                bitstring = fmt.format(i)
+                if not msb_site0:
+                    bitstring = bitstring[::-1]
+                state_prob_dict[bitstring] = p
             step += 1
             if show_progress and (step % 1024 == 0 or i == hilbert_dim - 1):
                 # update periodically to avoid excessive overhead
@@ -306,9 +371,15 @@ def get_eigenstate_probabilities(
 
     return state_prob_dict
 
+
 # -------------------- Get State Probabilities --------------------
 
-def statevector_to_probabilities(psi: np.ndarray) -> dict[str, float]:
+def statevector_to_probabilities(
+    psi: np.ndarray,
+    *,
+    msb_site0: bool = True,
+    drop_tol: float = 0.0,
+) -> dict[str, float]:
     """
     Convert a state vector into a dictionary of computational-basis probabilities.
 
@@ -316,6 +387,12 @@ def statevector_to_probabilities(psi: np.ndarray) -> dict[str, float]:
     ----
     psi : np.ndarray
         State vector of shape (2^N,). Entries are complex amplitudes.
+    msb_site0 : bool, optional
+        If True (default), format bitstrings with MSB ↔ site 0 (big-endian).
+        If False, flip to “LSB ↔ site 0” by reversing formatted bitstrings
+        (little-endian). This matches the option used elsewhere.
+    drop_tol : float, optional
+        If > 0, omit entries with probability ≤ drop_tol.
 
     Returns
     -------
@@ -325,8 +402,9 @@ def statevector_to_probabilities(psi: np.ndarray) -> dict[str, float]:
 
     Notes
     -----
-    - Convention: MSB ↔ site 0 (the same ordering as used by the solver).
+    - Convention by default: MSB ↔ site 0 (the same ordering as used by the solver).
       Example: for N=2, index 2 (binary "10") means site 0 excited, site 1 ground.
+    - Set `msb_site0=False` to use little-endian labeling instead.
     """
     psi = np.asarray(psi, dtype=np.complex128).reshape(-1)
     dim = psi.shape[0]
@@ -335,11 +413,16 @@ def statevector_to_probabilities(psi: np.ndarray) -> dict[str, float]:
 
     N = int(np.log2(dim))
     probs = np.abs(psi) ** 2
-    probs /= probs.sum()  # renormalize just in case
+    s = float(probs.sum())
+    if s > 0.0:
+        probs /= s  # renormalize just in case
 
-    out = {}
+    out: dict[str, float] = {}
+    thr = float(drop_tol)
     for i, p in enumerate(probs):
-        if p > 0.0:
+        if p > thr:
             bitstring = format(i, f"0{N}b")
+            if not msb_site0:
+                bitstring = bitstring[::-1]
             out[bitstring] = float(p)
     return out
