@@ -26,5 +26,6 @@ sequences).
 """
 
 from .time_series import TimeSeries
+from .adapters import rydberg
 
 __all__ = ["TimeSeries"]
