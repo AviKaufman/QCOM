@@ -145,4 +145,4 @@ Avi Kaufman — avigkaufman@gmail.com
 
 ⸻
 
-Last updated: October 15, 2025
+Last updated: December 9, 2025
