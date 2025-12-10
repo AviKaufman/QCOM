@@ -46,9 +46,11 @@ except Exception:  # pragma: no cover
     _sp = None
     _spl = None
 
+from scipy.sparse.linalg import expm_multiply
+
 # Progress manager is optional; if not present we no-op
 try:
-    from qcom.progress import ProgressManager
+    from qcom._internal.progress import ProgressManager
 except Exception:  # pragma: no cover
     class _DummyPM:
         @staticmethod
@@ -248,8 +250,10 @@ def evolve_state(
                 A = H
             else:
                 A = np.asarray(H, dtype=np.complex128)
-            U = _expm((-1j * dt) * (_sp.csr_matrix(A) if _is_sparse(A) else A))
-            psi = _apply_unitary(U, psi)
+            # U = _expm((-1j * dt) * (_sp.csr_matrix(A) if _is_sparse(A) else A))
+            # psi = _apply_unitary(U, psi)
+            A = _sp.csr_matrix(A) if _is_sparse(A) else np.asarray(A, np.complex128)
+            psi = expm_multiply((-1j * dt) * A, psi)
 
             if normalize_each_step:
                 psi = _normalize(psi)
