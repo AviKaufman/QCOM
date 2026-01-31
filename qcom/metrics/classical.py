@@ -199,7 +199,7 @@ def compute_mutual_information(
     H_B = _entropy_from_values(B.values(), total=sum(B.values()), base=base)
 
     I_AB = H_A + H_B - H_AB
-    return I_AB, H_A, H_B, H_AB
+    return I_AB
 
 
 # -------------------- Conditional Entropy --------------------
