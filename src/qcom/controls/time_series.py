@@ -147,8 +147,6 @@ class TimeSeries:
             snap[name] = (t_view, v_view)
         return MappingProxyType(snap)
 
-    # ------------------------------------------ New Property ------------------------------------------
-
     @property
     def channel_names(self) -> tuple[str, ...]:
         """
@@ -158,8 +156,6 @@ class TimeSeries:
             tuple[str, ...]: Channel names in insertion order.
         """
         return tuple(self._channels.keys())
-
-    # ------------------------------------------ New Property ------------------------------------------
 
     @property
     def is_empty(self) -> bool:
@@ -182,8 +178,6 @@ class TimeSeries:
         """
         return len(self._channels)
 
-    # ------------------------------ New Read-only ------------------------------
-
     def has_channel(self, name: str) -> bool:
         """
         Check whether a channel exists.
@@ -195,8 +189,6 @@ class TimeSeries:
             bool: True if the channel is present, False otherwise.
         """
         return name in self._channels
-
-    # ------------------------------ New Read-only ------------------------------
 
     def times(self, name: str) -> np.ndarray:
         """
@@ -219,8 +211,6 @@ class TimeSeries:
         view.setflags(write=False)
         return view
 
-    # ------------------------------ New Read-only ------------------------------
-
     def values(self, name: str) -> np.ndarray:
         """
         Read-only view of the values for a channel.
@@ -241,8 +231,6 @@ class TimeSeries:
         view = v.view()
         view.setflags(write=False)
         return view
-
-    # ------------------------------ New Read-only ------------------------------
 
     def domain(self, name: str | None = None) -> tuple[float, float]:
         """

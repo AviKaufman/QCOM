@@ -49,7 +49,7 @@ print("QCOM version:", qcom.__version__)
 
 - **Solvers**
   - *Static*: thin-spectrum eigen solve, ground-state utilities, dense full spectrum for small systems
-  - *Dynamic*: generic time evolution under time-dependent Hamiltonians via matrix exponentials
+  - *Dynamic*: generic time evolution under time-dependent Hamiltonians via `expm_multiply`
 
 - **Metrics**
   - *Classical*: Shannon entropy, conditional entropy, mutual information
@@ -134,10 +134,13 @@ Community feedback helps shape priorities—feel free to open issues or PRs.
 🤝 Contributing
 
 We welcome contributions of all sizes:
-	•	Bug reports, minimal reproductions
-	•	Tests and doc improvements
-	•	New examples/tutorials
-	•	Feature proposals via GitHub Issues
+
+- Bug reports, minimal reproductions
+- Tests and doc improvements
+- New examples/tutorials
+- Feature proposals via GitHub Issues
+
+Please follow the project standards in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Repo: https://github.com/AviKaufman/QCOM
 

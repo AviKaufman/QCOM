@@ -135,8 +135,6 @@ class LatticeRegister:
         """Return the number of sites in the register."""
         return self._pos.shape[0]
 
-    # ------------------------------------------ New Method ------------------------------------------
-
     def add(self, position: tuple[float, float, float]) -> int:
         """
         Append a single site to the register in insertion order.
@@ -190,8 +188,6 @@ class LatticeRegister:
         # Return index of the newly added site
         return self._pos.shape[0] - 1
 
-    # ------------------------------------------ New Method ------------------------------------------
-
     def remove(self, index: int) -> int:
         """
         Remove the site at the specified index.
@@ -216,8 +212,6 @@ class LatticeRegister:
         self._pos = np.ascontiguousarray(np.delete(self._pos, index, axis=0), dtype=np.float64)
         return index
 
-    # ------------------------------------------ New Method ------------------------------------------
-
     def position(self, index: int) -> tuple[float, float, float]:
         """
         Return the (x, y, z) coordinates (meters) of the site at 'index'.
@@ -231,8 +225,6 @@ class LatticeRegister:
         x, y, z = map(float, self._pos[index])
         return (x, y, z)
 
-    # ------------------------------------------ New Method ------------------------------------------
-
     def as_array(self) -> np.ndarray:
         """
         Return a **copy** of the positions array with shape (N, 3).
@@ -242,8 +234,6 @@ class LatticeRegister:
             - Use `.positions` property for a read-only view instead.
         """
         return self._pos.copy()
-
-    # ------------------------------------------ New Method ------------------------------------------
 
     def index_map(self, max_rows: int | None = None) -> str:
         """
@@ -273,8 +263,6 @@ class LatticeRegister:
             lines.append(f"... ({n - end} more)")
         return "\n".join(lines)
 
-    # ------------------------------------------ New Method ------------------------------------------
-
     def __repr__(self):
         """
         Return the official string representation of the LatticeRegister.
@@ -289,8 +277,6 @@ class LatticeRegister:
         preview = ", ".join([f"({x:.3e},{y:.3e},{z:.3e})" for x, y, z in self._pos[:head]])
         more = "" if head == n else f", ... +{n - head} more"
         return f"LatticeRegister(N={n}, positions=[{preview}{more}])"
-
-    # ------------------------------------------ New Method ------------------------------------------
 
     def distance(self, i: int, j: int) -> float:
         """
@@ -315,8 +301,6 @@ class LatticeRegister:
         dx, dy, dz = (xj - xi), (yj - yi), (zj - zi)
         return float(np.sqrt(dx * dx + dy * dy + dz * dz))
 
-    # ------------------------------------------ New Method ------------------------------------------
-
     def distances(self) -> np.ndarray:
         """
         Full pairwise Euclidean distance matrix (meters).
@@ -336,8 +320,6 @@ class LatticeRegister:
         # sqrt into float64 result
         return np.sqrt(D2, dtype=np.float64)
 
-    # ------------------------------------------ New Method ------------------------------------------
-
     def clear(self) -> None:
         """
         Remove **all** sites from the register.
@@ -350,8 +332,6 @@ class LatticeRegister:
             None
         """
         self._pos = np.zeros((0, 3), dtype=np.float64)
-
-    # ------------------------------------------ New Method ------------------------------------------
 
     def plot(self, show_index: bool = True, default_s: float = 200, **kwargs):
         """
