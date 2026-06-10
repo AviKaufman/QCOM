@@ -1,7 +1,6 @@
 # tests/test_io_text.py
 from pathlib import Path
-import io
-import os
+
 import pytest
 
 from qcom.io.text import parse_file, save_data
@@ -45,16 +44,18 @@ def test_parse_aggregates_duplicate_states(tmp_path: Path):
     assert total == pytest.approx(1.5 + 2.0 + 3.25)
 
 
-def test_parse_ignores_blank_and_reports_malformed_lines(tmp_path: Path, capsys: pytest.CaptureFixture):
+def test_parse_ignores_blank_and_reports_malformed_lines(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+):
     # Include blank lines and a malformed line (missing value)
     content = "\n".join(
         [
-            "",                 # blank
+            "",  # blank
             "000 1.0",
-            "bad_line",         # malformed (no split into 2 parts)
+            "bad_line",  # malformed (no split into 2 parts)
             "111 not_a_float",  # malformed (value error)
             "010 2.5",
-            "   ",              # whitespace-only
+            "   ",  # whitespace-only
         ]
     )
     fn = tmp_path / "messy.txt"

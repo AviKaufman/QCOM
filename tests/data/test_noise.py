@@ -11,12 +11,12 @@ from qcom.data.noise import introduce_error, m3_mitigate_counts_from_rates
 # introduce_error tests
 # ------------------------------------------------------------------------------------
 
+
 def test_introduce_error_no_noise_identity():
     """With zero error rates, output must equal input exactly."""
     counts = {"00": 10, "01": 5, "10": 7, "11": 0}
     counts_no_11 = {"00": 10, "01": 5, "10": 7}  # also test missing keys
     out = introduce_error(counts, ground_rate=0.0, excited_rate=0.0, seed=123)
-    print(out)
     assert out == counts_no_11  # exact identity
 
 
@@ -87,23 +87,15 @@ def test_introduce_error_invalid_rates():
 # m3_mitigate_counts_from_rates tests (with a fake mthree)
 # ------------------------------------------------------------------------------------
 
+
 class _FakeM3Mitigation:
-    """Minimal stand-in for mthree.M3Mitigation capturing input matrices and qubits."""
-    def __init__(self):
-        self.mats = None
-        self.loaded = False
-        self.applied_qubits = None
+    """Minimal stand-in for mthree.M3Mitigation."""
 
     def cals_from_matrices(self, matrices):
-        # Matrices is a list of 2x2 arrays per qubit
-        self.mats = [np.asarray(m) for m in matrices]
-        self.loaded = True
+        _ = [np.asarray(m) for m in matrices]
 
     def apply_correction(self, int_counts, meas_qubits):
-        # Record qubits and return a simple deterministic "mitigated" distribution:
-        # Convert counts to normalized probabilities and slightly reweight toward uniform,
-        # then renormalize to 1.
-        self.applied_qubits = list(meas_qubits)
+        _ = meas_qubits
         total = sum(int_counts.values())
         if total == 0:
             return {}
@@ -129,7 +121,6 @@ def _install_fake_mthree(monkeypatch):
 def test_m3_mitigate_counts_empty_returns_empty(monkeypatch):
     _install_fake_mthree(monkeypatch)
     assert m3_mitigate_counts_from_rates({}) == {}
-
 
 
 def test_m3_mitigate_counts_per_site_rates_and_custom_qubits(monkeypatch):

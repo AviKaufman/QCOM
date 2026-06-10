@@ -6,6 +6,7 @@ from qcom.hamiltonians.rydberg import (
     build_rydberg,
     RydbergHamiltonian,
 )
+from qcom.lattice_register import LatticeRegister
 
 
 # --------------------------------------------------------------------------------------
@@ -38,7 +39,8 @@ class FakeRegister:
 _SIGMA_X = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=np.float64)
 _SIGMA_Y = np.array([[0.0, -1.0j], [1.0j, 0.0]], dtype=np.complex128)
 _SIGMA_Z = np.array([[1.0, 0.0], [0.0, -1.0]], dtype=np.float64)
-_I2      = np.eye(2, dtype=np.float64)
+_I2 = np.eye(2, dtype=np.float64)
+
 
 def single_qubit_expected(omega, delta, phi):
     # H = (Ω/2)(cosφ σx + sinφ σy) - Δ n,  with n=(I-σz)/2
@@ -51,6 +53,7 @@ def single_qubit_expected(omega, delta, phi):
 # Tests
 # --------------------------------------------------------------------------------------
 
+
 def test_single_qubit_dense_matches_analytic():
     reg = FakeRegister(np.array([[0.0]]))  # 1 site in 1D
     C6 = 0.0
@@ -58,9 +61,7 @@ def test_single_qubit_dense_matches_analytic():
     Delta = 1.1
     Phi = 0.4
 
-    Hobj: RydbergHamiltonian = build_rydberg(
-        reg, C6=C6, Omega=Omega, Delta=Delta, Phi=Phi
-    )
+    Hobj: RydbergHamiltonian = build_rydberg(reg, C6=C6, Omega=Omega, Delta=Delta, Phi=Phi)
     H = Hobj.to_dense()
 
     H_ref = single_qubit_expected(Omega, Delta, Phi)
@@ -73,11 +74,15 @@ def test_dtype_real_if_phi_zero_complex_if_phi_pi_over_2():
     C6 = 0.0
 
     # All phases = 0 → purely real σx drive
-    H_real = build_rydberg(reg, C6=C6, Omega=[1.0, 2.0], Delta=[0.0, 0.0], Phi=[0.0, 0.0]).to_dense()
+    H_real = build_rydberg(
+        reg, C6=C6, Omega=[1.0, 2.0], Delta=[0.0, 0.0], Phi=[0.0, 0.0]
+    ).to_dense()
     assert H_real.dtype == np.float64
 
     # All phases = π/2 → σy drive → imaginary off-diagonals → complex dtype
-    H_cmplx = build_rydberg(reg, C6=C6, Omega=[1.0, 2.0], Delta=[0.0, 0.0], Phi=[np.pi/2, np.pi/2]).to_dense()
+    H_cmplx = build_rydberg(
+        reg, C6=C6, Omega=[1.0, 2.0], Delta=[0.0, 0.0], Phi=[np.pi / 2, np.pi / 2]
+    ).to_dense()
     # It should remain complex because σy contributes ±i explicitly
     assert np.iscomplexobj(H_cmplx)
     assert H_cmplx.dtype == np.complex128
@@ -172,3 +177,15 @@ def test_invalid_register_size_raises():
     with pytest.raises(ValueError):
         bad_reg = FakeRegister(np.array([]).reshape(0, 1))  # N=0
         _ = build_rydberg(bad_reg, C6=0.0, Omega=0.0, Delta=0.0, Phi=0.0)
+
+
+def test_rydberg_real_lattice_register_matvec_matches_dense_and_sparse():
+    reg = LatticeRegister([(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)])
+    Hobj = build_rydberg(reg, C6=0.5, Omega=[0.7, 0.3], Delta=[0.2, -0.4], Phi=[0.0, 0.2])
+    dense = Hobj.to_dense()
+    sparse = Hobj.to_sparse()
+    psi = np.array([1.0, 0.5, -0.2, 0.1], dtype=np.complex128)
+
+    assert np.allclose(sparse.toarray(), dense)
+    assert np.allclose(Hobj.apply(psi), dense @ psi)
+    assert np.allclose(Hobj.to_linear_operator() @ psi, dense @ psi)

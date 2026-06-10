@@ -1,5 +1,4 @@
 # tests/test_ops.py
-import math
 import pytest
 
 from qcom.data.ops import (
@@ -12,6 +11,7 @@ from qcom.data.ops import (
 # ------------------------------------------------------------------------------------
 # normalize_to_probabilities
 # ------------------------------------------------------------------------------------
+
 
 def test_normalize_empty_ok_and_sum():
     counts = {}
@@ -28,9 +28,11 @@ def test_normalize_raises_on_zero_total():
     with pytest.raises(ValueError):
         _ = normalize_to_probabilities({"0": 1}, total_count=0)
 
+
 # ------------------------------------------------------------------------------------
 # truncate_probabilities
 # ------------------------------------------------------------------------------------
+
 
 def test_truncate_keeps_equal_and_above_threshold():
     probs = {"00": 0.50, "01": 0.20, "10": 0.19, "11": 0.11}
@@ -51,6 +53,7 @@ def test_truncate_empty_input_ok():
 # ------------------------------------------------------------------------------------
 # print_most_probable_data (stdout capture)
 # ------------------------------------------------------------------------------------
+
 
 def test_print_most_probable_top_n(capsys):
     probs = {"00": 0.1, "01": 0.4, "10": 0.3, "11": 0.2}

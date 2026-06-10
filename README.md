@@ -22,6 +22,12 @@ Upgrade to the latest release:
 pip install --upgrade QCOM
 ```
 
+For local development, QCOM uses a `src/` layout:
+
+```bash
+python -m pip install -e ".[dev,parquet,viz]"
+```
+
 
 ⸻
 
@@ -39,7 +45,7 @@ print("QCOM version:", qcom.__version__)
 
 - **Hamiltonians**
   - Exact builders for **Rydberg** systems (chains/ladders)
-  - (Growing set) utilities to support additional models
+  - Working **transverse-field Ising** Hamiltonians with dense, sparse, and matvec backends
 
 - **Solvers**
   - *Static*: thin-spectrum eigen solve, ground-state utilities, dense full spectrum for small systems
@@ -97,16 +103,14 @@ Suggested order:
 From the project root:
 
 ```bash
+python -m pip install -e ".[dev,parquet,viz]"
 pytest
-# or restrict to the project tests folder
-pytest tests/
 ```
 
-If you see an “import file mismatch” error, clear caches:
+Developer task runner:
 
 ```bash
-find . -name "__pycache__" -type d -exec rm -rf {} +
-find . -name "*.pyc" -delete
+nox -s lint typecheck test build
 ```
 ⸻
 
@@ -118,7 +122,7 @@ Curated toy datasets for quick experiments:
 ⸻
 
 🗺️ Roadmap
-- New Hamiltonians: Ising, Heisenberg, and additional lattice models
+- New Hamiltonians: Heisenberg and additional lattice models
 - Parameter sweeps for large optimization workloads
 - Tensor-network methods: DMRG / TEBD for large Hilbert spaces
 - Expanded I/O readers and richer plotting presets
@@ -145,4 +149,35 @@ Avi Kaufman — avigkaufman@gmail.com
 
 ⸻
 
-Last updated: December 9, 2025
+Last updated: June 4, 2026
+
+---
+
+## API Notes
+
+`compute_mutual_information` returns the scalar mutual information by default:
+
+```python
+from qcom.metrics import compute_mutual_information
+
+probabilities = {"00": 0.5, "11": 0.5}
+mi = compute_mutual_information(probabilities, configuration=[0, 1], base=2)
+components = compute_mutual_information(
+    probabilities,
+    configuration=[0, 1],
+    base=2,
+    return_components=True,
+)
+print(mi, components.h_a, components.h_b, components.h_ab)
+```
+
+Typed measurement containers are available for explicit counts/probability workflows:
+
+```python
+from qcom.data import CountsData, normalize_to_probabilities
+
+counts = CountsData({"00": 10, "11": 5})
+probabilities = normalize_to_probabilities(counts)
+```
+
+Plotting helpers live in `qcom.viz`; existing `.plot()` methods remain as wrappers.

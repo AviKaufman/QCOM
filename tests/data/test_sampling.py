@@ -3,12 +3,14 @@ import math
 import random
 import pytest
 
+from qcom.core import CountsData, ProbabilityData
 from qcom.data.sampling import sample_data, combine_datasets
 
 
 # ------------------------------------------------------------------------------------
 # sample_data
 # ------------------------------------------------------------------------------------
+
 
 def test_sample_data_counts_sum_to_sample_size_and_is_reproducible():
     counts = {"00": 50, "01": 25, "10": 25}  # total_count = 100
@@ -41,6 +43,7 @@ def test_sample_data_raises_with_empty_population():
 # combine_datasets
 # ------------------------------------------------------------------------------------
 
+
 def test_combine_counts_adds_counts():
     d1 = {"00": 2, "01": 3}
     d2 = {"01": 1, "10": 4}
@@ -56,3 +59,31 @@ def test_combine_mixed_counts_and_probabilities_raises():
     counts = {"0": 7, "1": 3}
     with pytest.raises(ValueError):
         _ = combine_datasets(probs, counts)
+
+
+def test_combine_raw_dict_count_total_one_uses_legacy_probability_heuristic():
+    # Raw dict compatibility still treats sum≈1 as probabilities.
+    out = combine_datasets({"0": 1}, {"0": 1})
+
+    assert out == {"0": 1.0}
+
+
+def test_combine_counts_data_total_one_stays_counts():
+    out = combine_datasets(CountsData({"0": 1}), CountsData({"0": 1}), return_data=True)
+
+    assert isinstance(out, CountsData)
+    assert out.to_dict() == {"0": 2}
+    assert out.shots == 2
+
+
+def test_combine_probability_data_is_explicit_and_normalized():
+    out = combine_datasets(
+        ProbabilityData({"0": 0.7, "1": 0.3}),
+        ProbabilityData({"0": 0.2, "1": 0.8}),
+        return_data=True,
+    )
+
+    assert isinstance(out, ProbabilityData)
+    assert math.isclose(sum(out.probabilities.values()), 1.0)
+    assert math.isclose(out.probabilities["0"], 0.45)
+    assert math.isclose(out.probabilities["1"], 0.55)

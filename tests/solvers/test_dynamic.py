@@ -2,12 +2,13 @@
 import numpy as np
 import pytest
 
-scipy = pytest.importorskip("scipy")  # dynamic uses SciPy expm backends
+pytest.importorskip("scipy")  # dynamic uses SciPy expm backends
 
 from qcom.solvers.dynamic import evolve_state, ControlAdapter
 
 
 # -------------------- Tiny mocks --------------------
+
 
 class _MockTimeSeries:
     """
@@ -16,6 +17,7 @@ class _MockTimeSeries:
       - channel_names: iterable of available channel names
       - value_at([t_mid], channels=...): {name: np.array([value])}
     """
+
     def __init__(self, t0, t1, channel_values):
         """
         channel_values: dict[str, float] of constant values
@@ -40,6 +42,7 @@ class _XDriveAdapterDense(ControlAdapter):
     """
     H = (Omega/2) * sigma_x  (2x2 dense array)
     """
+
     def __init__(self, omega_required=True, dim=2):
         self._dim = dim
         self._req = ("Omega",) if omega_required else tuple()
@@ -60,6 +63,7 @@ class _XDriveAdapterDense(ControlAdapter):
 
 def _make_sparse_sigma_x():
     import scipy.sparse as sp
+
     sx = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=np.complex128)
     return sp.csr_matrix(sx)
 
@@ -68,6 +72,7 @@ class _XDriveAdapterSparse(ControlAdapter):
     """
     H = (Omega/2) * sigma_x  (2x2 CSR sparse)
     """
+
     def __init__(self, dim=2):
         self._dim = dim
         self._sx = _make_sparse_sigma_x()
@@ -81,12 +86,12 @@ class _XDriveAdapterSparse(ControlAdapter):
         return self._dim
 
     def hamiltonian_at(self, t, controls):
-        import scipy.sparse as sp
         Omega = float(controls.get("Omega", 0.0))
         return (0.5 * Omega) * self._sx  # CSR
 
 
 # -------------------- Analytic helper --------------------
+
 
 def analytic_rabi_xdrive(psi0, Omega, T):
     """
@@ -95,13 +100,14 @@ def analytic_rabi_xdrive(psi0, Omega, T):
     """
     c = np.cos(0.5 * Omega * T)
     s = np.sin(0.5 * Omega * T)
-    I = np.eye(2, dtype=np.complex128)
+    identity = np.eye(2, dtype=np.complex128)
     sx = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=np.complex128)
-    U = c * I - 1j * s * sx
+    U = c * identity - 1j * s * sx
     return U @ psi0
 
 
 # -------------------- Tests --------------------
+
 
 def test_dense_times_explicit_matches_analytic():
     Omega = 2.0
@@ -150,9 +156,7 @@ def test_recording_has_correct_lengths():
     adapter = _XDriveAdapterDense()
 
     psi0 = np.array([1.0, 0.0], dtype=np.complex128)
-    psi_T, out = evolve_state(
-        ts, adapter, psi0, n_steps=10, record=True, show_progress=False
-    )
+    psi_T, out = evolve_state(ts, adapter, psi0, n_steps=10, record=True, show_progress=False)
     # n_steps=10 → 11 time grid points and 11 states recorded
     assert len(out["times"]) == 11
     assert len(out["states"]) == 11
@@ -169,7 +173,7 @@ def test_mutually_exclusive_times_and_nsteps_error():
 
 
 def test_sparse_path_smoke_and_accuracy():
-    sp = pytest.importorskip("scipy.sparse")
+    pytest.importorskip("scipy.sparse")
     # small interval but > 0
     Omega = 0.9
     t0, t1 = 0.0, 0.2
@@ -177,9 +181,7 @@ def test_sparse_path_smoke_and_accuracy():
     adapter = _XDriveAdapterSparse()
 
     psi0 = np.array([1.0, 0.0], dtype=np.complex128)
-    psi_T, _ = evolve_state(
-        ts, adapter, psi0, n_steps=64, record=False, show_progress=False
-    )
+    psi_T, _ = evolve_state(ts, adapter, psi0, n_steps=64, record=False, show_progress=False)
     psi_ref = analytic_rabi_xdrive(psi0, Omega, T=t1 - t0)
 
     # Sparse path should agree closely with analytic

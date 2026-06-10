@@ -28,9 +28,7 @@ def test_roundtrip_save_and_parse(tmp_path: Path):
 
 def test_parse_parquet_written_by_pandas(tmp_path: Path):
     # Create a pandas-written Parquet with the expected schema
-    df = pd.DataFrame(
-        {"state": ["000", "111", "101"], "probability": [0.2, 0.5, 0.3]}
-    )
+    df = pd.DataFrame({"state": ["000", "111", "101"], "probability": [0.2, 0.5, 0.3]})
     fn = tmp_path / "pandas_written.parquet"
     df.to_parquet(fn, engine="pyarrow", index=False)
 

@@ -5,6 +5,7 @@ from qcom.metrics.bitstrings import order_dict, part_dict
 
 # -------------------- order_dict tests --------------------
 
+
 def test_order_dict_sorts_by_integer_value():
     inp = {"10": 0.1, "01": 0.2, "00": 0.3, "11": 0.4}
     ordered = order_dict(inp)
@@ -29,6 +30,7 @@ def test_order_dict_type_error_non_dict():
 
 
 # -------------------- part_dict tests --------------------
+
 
 def test_part_dict_extract_single_index():
     inp = {"00": 1.0, "01": 2.0, "10": 3.0, "11": 4.0}

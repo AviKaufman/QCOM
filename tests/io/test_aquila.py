@@ -48,7 +48,9 @@ def test_parse_json_includes_incomplete_when_sorted_false(tmp_path):
     payload = {
         "measurements": [
             {"shotResult": {"preSequence": [1, 1, 1], "postSequence": [0, 1, 1]}},  # → "100"
-            {"shotResult": {"preSequence": [1, 0, 1], "postSequence": [1, 0, 1]}},  # → invert to [0,1,0] → "010"
+            {
+                "shotResult": {"preSequence": [1, 0, 1], "postSequence": [1, 0, 1]}
+            },  # → invert to [0,1,0] → "010"
         ]
     }
     fn = _write_json(tmp_path, payload)
@@ -59,6 +61,20 @@ def test_parse_json_includes_incomplete_when_sorted_false(tmp_path):
     assert counts == {"100": 1.0, "010": 1.0}
 
 
+def test_parse_json_filter_incomplete_alias_overrides_sorted(tmp_path):
+    payload = {
+        "measurements": [
+            {"shotResult": {"preSequence": [1, 0], "postSequence": [0, 1]}},
+        ]
+    }
+    fn = _write_json(tmp_path, payload)
+
+    counts, total = parse_json(fn, sorted=True, filter_incomplete=False, show_progress=False)
+
+    assert total == pytest.approx(1.0)
+    assert counts == {"10": 1.0}
+
+
 def test_parse_json_handles_bad_records_gracefully(tmp_path, capsys):
     """
     If a record is malformed (e.g., missing 'shotResult'), the parser should
@@ -66,7 +82,9 @@ def test_parse_json_handles_bad_records_gracefully(tmp_path, capsys):
     """
     payload = {
         "measurements": [
-            {"shotResult": {"preSequence": [1, 1], "postSequence": [1, 0]}},  # accepted if sorted=False → invert → "01"
+            {
+                "shotResult": {"preSequence": [1, 1], "postSequence": [1, 0]}
+            },  # accepted if sorted=False → invert → "01"
             {"notShotResult": {"oops": True}},  # malformed → triggers exception path
             {"shotResult": {"preSequence": [1, 1], "postSequence": [0, 0]}},  # → invert → "11"
         ]
