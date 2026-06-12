@@ -113,6 +113,21 @@ deprecation plan.
   replacement name. Keep aliases grouped, documented, and tested with
   `pytest.warns`.
 
+## Compatibility And Deprecation
+
+- Prefer the new public name in fresh code, examples, tutorials, and tests.
+- Keep a compatibility alias only when it protects existing callers.
+- An alias should remain available for at least one minor release after the
+  preferred name is introduced, unless a later release note explicitly extends
+  the window.
+- Deprecation warnings should name both the old symbol and the preferred
+  replacement, and they should fire once per call path.
+- Each alias needs a focused behavior test and a warning test before release.
+- Migration notes for removals belong in release notes and `ROADMAP.md`, not
+  scattered through code comments.
+- Preserve keyword behavior in wrappers unless a keyword rename is itself part
+  of the migration plan.
+
 ## Comments And Docstrings
 
 - Comments should explain why something is non-obvious, not restate what each

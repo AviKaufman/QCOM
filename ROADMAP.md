@@ -26,6 +26,9 @@ update any linked docs that are now out of sync.
 - Optional dependency coverage now runs in CI through `nox -s test_extras`.
 - Tutorial notebooks currently execute cleanly under
   `scripts/validate_tutorials.py`.
+- Deprecated aliases follow the documented release policy in
+  [CONTRIBUTING.md](CONTRIBUTING.md), so old names remain available only as
+  retained compatibility shims.
 - Standard validation is organized through `noxfile.py`, with extra tutorial
   validation through `scripts/validate_tutorials.py`.
 
@@ -33,9 +36,6 @@ update any linked docs that are now out of sync.
 
 ### Now
 
-- Define the release policy for deprecated aliases before removing any old
-  public names. Include the warning window, changelog expectations, and test
-  expectations.
 - Keep the preferred API names dominant in README examples, tutorials, examples,
   and repo-owned tests.
 - Preserve output-free tutorial notebooks after API or documentation changes.
@@ -142,7 +142,6 @@ update any linked docs that are now out of sync.
 
 ## Known Issues
 
-- Compatibility aliases warn, but the removal timeline is not yet defined.
 - Optional dependencies (`pyarrow`, `matplotlib`, and `mthree`) are intentionally
   isolated, and CI now exercises them through `nox -s test_extras`, but
   release checks should still validate the real environment before shipping.
