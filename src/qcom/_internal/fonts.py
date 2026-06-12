@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 
 def _default_times_new_roman_paths() -> tuple[Path, ...]:
@@ -41,7 +41,7 @@ def _register_times_new_roman(candidate_paths: tuple[str, ...]) -> bool:
 
 def publication_font_context(
     candidate_paths: Iterable[str | Path] | None = None,
-) -> dict[str, object]:
+) -> dict[Any, Any]:
     """
     Return a Matplotlib rcParams mapping for publication-style serif plots.
 
