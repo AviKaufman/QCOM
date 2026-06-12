@@ -5,7 +5,12 @@ pytest.importorskip("pyarrow")
 import pandas as pd
 from pathlib import Path
 
-from qcom.io.parquet import parse_parquet, save_dict_to_parquet, save_parquet
+from qcom.io.parquet import (
+    _install_pyarrow_hotfix,
+    parse_parquet,
+    save_dict_to_parquet,
+    save_parquet,
+)
 
 
 def test_roundtrip_save_and_parse(tmp_path: Path):
@@ -55,3 +60,23 @@ def test_parse_parquet_file_name_keyword_warns(tmp_path: Path):
 
     with pytest.warns(DeprecationWarning, match="file_path"):
         assert parse_parquet(file_name=str(fn), show_progress=False) == data
+
+
+def test_parse_parquet_handles_missing_pyarrow_extension_type(monkeypatch):
+    import pyarrow
+
+    calls: list[str] = []
+
+    def fake_unregister_extension_type(name: str):
+        calls.append(name)
+        if name == "arrow.py_extension_type":
+            raise pyarrow.ArrowKeyError(name)
+        return None
+
+    monkeypatch.setattr(pyarrow, "unregister_extension_type", fake_unregister_extension_type)
+    monkeypatch.delattr(pyarrow, "_qcom_hotfix_installed", raising=False)
+
+    _install_pyarrow_hotfix()
+    pyarrow.unregister_extension_type("arrow.py_extension_type")
+
+    assert "arrow.py_extension_type" in calls

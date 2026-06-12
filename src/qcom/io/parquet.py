@@ -30,6 +30,36 @@ from .._internal.deprecations import warn_deprecated_alias
 __all__ = ["parse_parquet", "save_parquet", "save_dict_to_parquet"]
 
 
+def _install_pyarrow_hotfix() -> None:
+    """
+    Work around a pandas/pyarrow interaction where pandas tries to unregister
+    an extension type that may not exist yet in newer pyarrow builds.
+
+    The failure shows up as an ArrowKeyError during pandas.read_parquet() or
+    DataFrame.to_parquet() before any file I/O happens.
+    """
+    try:
+        import pyarrow
+    except ImportError:
+        return
+
+    if getattr(pyarrow, "_qcom_hotfix_installed", False):
+        return
+
+    original_unregister = pyarrow.unregister_extension_type
+
+    def safe_unregister_extension_type(name: str):
+        try:
+            return original_unregister(name)
+        except pyarrow.ArrowKeyError:
+            if name == "arrow.py_extension_type":
+                return None
+            raise
+
+    pyarrow.unregister_extension_type = safe_unregister_extension_type
+    pyarrow._qcom_hotfix_installed = True
+
+
 def parse_parquet(
     file_path: str | None = None,
     show_progress: bool = False,
@@ -67,6 +97,7 @@ def parse_parquet(
         if show_progress
         else ProgressManager.dummy_context()
     ):
+        _install_pyarrow_hotfix()
         df = pd.read_parquet(file_path, engine="pyarrow")
         if show_progress:
             ProgressManager.update_progress(1)
@@ -91,6 +122,7 @@ def save_parquet(bitstring_probabilities: Dict[str, float], output_path: str) ->
     """
     total_steps = 3
     with ProgressManager.progress("Saving dictionary to Parquet", total_steps=total_steps):
+        _install_pyarrow_hotfix()
         items = list(bitstring_probabilities.items())
         ProgressManager.update_progress(1)
 

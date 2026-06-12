@@ -24,6 +24,8 @@ update any linked docs that are now out of sync.
 - Control adapters are explicit: the registry remains available, but no default
   adapters are auto-registered.
 - Optional dependency coverage now runs in CI through `nox -s test_extras`.
+- Tutorial notebooks currently execute cleanly under
+  `scripts/validate_tutorials.py`.
 - Standard validation is organized through `noxfile.py`, with extra tutorial
   validation through `scripts/validate_tutorials.py`.
 

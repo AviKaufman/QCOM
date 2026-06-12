@@ -19,7 +19,10 @@ authors = [
 dependencies = [
   "numpy>=1.23",
   "scipy>=1.10",
-  "pandas>=1.5"
+  "pandas>=1.5",
+  "pyarrow>=24.0.0",
+  "matplotlib>=3.10.9",
+  "mthree>=3.0.0",
 ]
 
 # Nice metadata for PyPI
@@ -89,3 +92,9 @@ files = ["src/qcom"]
 ignore_missing_imports = true
 warn_unused_ignores = true
 show_error_codes = true
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.3.0",
+    "jupyter>=1.1.1",
+]
