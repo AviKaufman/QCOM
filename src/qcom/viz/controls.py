@@ -97,7 +97,9 @@ def plot_time_series(
                 if c not in labels and c in default_labels:
                     labels[c] = default_labels[c]
             if time_series.mode == "normalized":
-                norm_y_hints = cast(Mapping[str, tuple[float, float]], preset.get("norm_y_hints", {}))
+                norm_y_hints = cast(
+                    Mapping[str, tuple[float, float]], preset.get("norm_y_hints", {})
+                )
                 for c, rng in norm_y_hints.items():
                     if c in canon_list and c not in y_hints:
                         y_hints[c] = rng
