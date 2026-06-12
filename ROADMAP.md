@@ -57,11 +57,12 @@ update any linked docs that are now out of sync.
 
 ### Now
 
-- Keep Markdown ownership clean: README for orientation, CONTRIBUTING for
-  standards, repo-landscape for architecture, and ROADMAP for backlog.
+- Keep Markdown ownership clean and revisit README, CONTRIBUTING,
+  repo-landscape, and ROADMAP together when one of them changes.
+- Keep the documented dead-code review flow in mind; treat lazy exports and
+  compatibility aliases as intentional false positives unless tests or exports
+  change.
 - Avoid broad refactors while compatibility aliases are being settled.
-- Treat lazy exports and compatibility aliases as intentional when reviewing
-  dead-code tooling output.
 
 ### Next
 
