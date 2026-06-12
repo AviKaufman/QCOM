@@ -135,12 +135,17 @@ deprecation plan.
   keep it broad and mark it as future work rather than promising a date.
 - Keep `README.md` focused on user-facing orientation. Put contributor rules here.
 - Update `repo-landscape.md` only when architecture facts change.
+- When `ROADMAP.md` changes, review `README.md`, `CONTRIBUTING.md`, and
+  `repo-landscape.md` in the same pass and update any linked docs that are now
+  out of sync.
 
 ## Tests And Validation
 
 - Add focused pytest coverage for new public behavior.
 - Optional dependency tests must either install the needed extra in the relevant
   nox session or skip cleanly.
+- Optional dependency coverage belongs in `nox -s test_extras` and should stay
+  green whenever optional features or dependency wiring change.
 - Use result containers explicitly when a test needs to distinguish counts from
   probabilities.
 - Run the standard checks before calling repo work done:

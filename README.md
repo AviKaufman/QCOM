@@ -127,7 +127,8 @@ nox -s test_extras
 ```
 
 The architecture map in [repo-landscape.md](repo-landscape.md) is the fastest
-way to orient to the package layout before making subsystem changes.
+way to orient to the package layout before making subsystem changes. Optional
+dependency changes should be checked with `nox -s test_extras`.
 
 ## Data
 

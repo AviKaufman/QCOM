@@ -3,6 +3,8 @@
 This file is the single backlog source for QCOM. Use [README.md](README.md)
 for install and first usage, [CONTRIBUTING.md](CONTRIBUTING.md) for contributor
 standards, and [repo-landscape.md](repo-landscape.md) for the architecture map.
+When this file changes, review the other Markdown files in the same pass and
+update any linked docs that are now out of sync.
 
 ## Current State
 
@@ -21,6 +23,7 @@ standards, and [repo-landscape.md](repo-landscape.md) for the architecture map.
 - `mypy` now covers the full `src/qcom` package instead of a hand-picked subset.
 - Control adapters are explicit: the registry remains available, but no default
   adapters are auto-registered.
+- Optional dependency coverage now runs in CI through `nox -s test_extras`.
 - Standard validation is organized through `noxfile.py`, with extra tutorial
   validation through `scripts/validate_tutorials.py`.
 
@@ -57,8 +60,6 @@ standards, and [repo-landscape.md](repo-landscape.md) for the architecture map.
 
 - Keep `mypy` coverage on the full `src/qcom` package and consider stricter
   checking only after the current baseline stays green in CI.
-- Decide whether optional-dependency coverage should run in CI through
-  `nox -s test_extras`.
 - Add release hygiene around build checks, package metadata review, and release
   notes.
 - Consider a lightweight dead-code or vulture review process with documented
@@ -141,7 +142,8 @@ standards, and [repo-landscape.md](repo-landscape.md) for the architecture map.
 
 - Compatibility aliases warn, but the removal timeline is not yet defined.
 - Optional dependencies (`pyarrow`, `matplotlib`, and `mthree`) are intentionally
-  isolated, but real-environment validation should be part of release checks.
+  isolated, and CI now exercises them through `nox -s test_extras`, but
+  release checks should still validate the real environment before shipping.
 - Dead-code tools may flag lazy exports, compatibility aliases, or retained
   adapter helpers unless those findings are reviewed with project context.
 
