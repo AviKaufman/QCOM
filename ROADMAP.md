@@ -23,6 +23,10 @@ update any linked docs that are now out of sync.
 - Preferred API names now dominate README examples, tutorials, examples, and
   repo-owned tests; legacy names remain only as compatibility shims and
   explicit alias tests.
+- Compatibility wrappers are covered by focused warning and forwarding tests
+  in the relevant subsystem suites.
+- The control-adapter registry has direct tests for registration, lookup, and
+  missing-key behavior.
 - Markdown ownership is kept clean across README, CONTRIBUTING, repo-landscape,
   and ROADMAP.
 - Dead-code tooling still flags lazy exports and compatibility aliases, and the
@@ -36,6 +40,9 @@ update any linked docs that are now out of sync.
 - Deprecated aliases follow the documented release policy in
   [CONTRIBUTING.md](CONTRIBUTING.md), so old names remain available only as
   retained compatibility shims.
+- Release hygiene now has a concrete checklist in [CONTRIBUTING.md](CONTRIBUTING.md)
+  for build checks, package metadata review, release notes, and optional/tutorial
+  validation.
 - Standard validation is organized through `noxfile.py`, with extra tutorial
   validation through `scripts/validate_tutorials.py`.
 
@@ -47,9 +54,6 @@ update any linked docs that are now out of sync.
 
 ### Next
 
-- Add targeted tests for any adapter-registry behavior that remains public.
-- Audit compatibility wrappers before release so every alias warns once per call
-  path and forwards keyword arguments predictably.
 - Document any non-obvious migration guidance for deprecated names in one place
   rather than scattering notes across examples.
 
@@ -68,8 +72,6 @@ update any linked docs that are now out of sync.
 
 - Keep `mypy` coverage on the full `src/qcom` package and consider stricter
   checking only after the current baseline stays green in CI.
-- Add release hygiene around build checks, package metadata review, and release
-  notes.
 - Consider a lightweight dead-code or vulture review process with documented
   false positives for lazy package exports.
 

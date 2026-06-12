@@ -205,3 +205,18 @@ commands and report the exact commands used.
 - Separate mechanical formatting from behavior changes when practical.
 - Include the validation commands and results in the final report.
 - Call out intentional follow-up work instead of hiding known inconsistencies.
+
+## Release Hygiene
+
+- Before cutting a release, run the standard checks from the repository root:
+
+```bash
+nox -s lint typecheck test build
+```
+
+- Review package metadata, dependency groups, and version fields for accuracy.
+- Confirm release notes or changelog notes cover public API changes, deprecations,
+  compatibility aliases, and tutorial-impacting updates.
+- Run `nox -s test_extras` when optional dependency behavior changed.
+- Run `nox -s tutorials` when notebooks or tutorial-facing APIs changed.
+- Keep release decisions visible in `ROADMAP.md` until the release is complete.
