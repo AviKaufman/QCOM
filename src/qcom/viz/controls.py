@@ -5,7 +5,7 @@ Plotting helpers for control time series.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Mapping, cast
+from typing import Any, Mapping, cast
 
 import numpy as np
 
@@ -146,11 +146,11 @@ def plot_time_series(
 
     if chosen_preset is not None:
         preset = presets[chosen_preset]
-        title_str = (
+        title_str = str(
             preset["title_norm"] if time_series.mode == "normalized" else preset["title_abs"]
         )
     else:
-        title_str = "TimeSeries (Per-Channel)" if style == "per_channel" else "TimeSeries"
+        title_str = str("TimeSeries (Per-Channel)" if style == "per_channel" else "TimeSeries")
 
     title_obj = fig.suptitle(title_str, fontsize=14, y=1.0, va="bottom")
     handles_labels = [ax.get_legend_handles_labels() for ax in axes]
@@ -177,7 +177,7 @@ def plot_time_series(
         )
 
     fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
+    renderer = cast(Any, fig.canvas).get_renderer()
 
     def _h_in_figcoords(artist):
         bbox = artist.get_window_extent(renderer).transformed(fig.transFigure.inverted())
