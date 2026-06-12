@@ -1,4 +1,3 @@
-# qcom/hamiltonians/base.py
 """
 Abstract base class for Hamiltonians in QCOM.
 
@@ -21,7 +20,7 @@ Design highlights
 
 Typical subclassing pattern
 ---------------------------
-class MyH(BaseHamiltonian):
+class CustomHamiltonian(BaseHamiltonian):
     @property
     def num_sites(self): ...
     @property
@@ -51,9 +50,6 @@ from typing import Any, Mapping, Optional
 import numpy as np
 
 
-# -------------------- Base Class --------------------
-
-
 class BaseHamiltonian(ABC):
     """
     Abstract interface for Hamiltonians in QCOM.
@@ -67,7 +63,6 @@ class BaseHamiltonian(ABC):
       - `to_sparse(self) -> "sp.spmatrix"`
     """
 
-    # -------------------- Minimal identity --------------------
     @property
     @abstractmethod
     def num_sites(self) -> int:
@@ -86,12 +81,10 @@ class BaseHamiltonian(ABC):
     # Hermiticity is the default; override if needed (e.g., non-Hermitian models).
     is_hermitian: bool = True
 
-    # -------------------- Optional descriptor --------------------
     def parameters(self) -> Mapping[str, Any]:
         """Optional summary of construction parameters (for logging/debug)."""
         return {}
 
-    # -------------------- Backends (subclasses override at least one) --------------------
     def to_sparse(self):
         """Return a scipy.sparse.spmatrix representation of H, if implemented."""
         raise NotImplementedError("to_sparse() not implemented for this Hamiltonian.")
@@ -100,7 +93,6 @@ class BaseHamiltonian(ABC):
         """Multiply H @ psi without materializing a dense matrix."""
         raise NotImplementedError("_matvec() not implemented for this Hamiltonian.")
 
-    # -------------------- Materializers --------------------
     def to_linear_operator(self):
         """
         Build a scipy.sparse.linalg.LinearOperator for H.
@@ -158,7 +150,6 @@ class BaseHamiltonian(ABC):
             out[:, j] = H @ eye[:, j]
         return out
 
-    # -------------------- Convenience ops --------------------
     def apply(self, psi: np.ndarray) -> np.ndarray:
         """
         Compute H @ psi without materializing dense matrices.
@@ -233,7 +224,6 @@ class BaseHamiltonian(ABC):
             return evals, evecs
         return evals
 
-    # -------------------- Niceties --------------------
     def __repr__(self) -> str:
         cls = self.__class__.__name__
         try:
@@ -242,9 +232,6 @@ class BaseHamiltonian(ABC):
             p = {}
         summary = ", ".join(f"{k}={v}" for k, v in p.items()) if p else "…"
         return f"{cls}(N={self.num_sites}, dim={self.hilbert_dim}, dtype={self.dtype}, params={{ {summary} }})"
-
-
-# -------------------- Internal helpers --------------------
 
 
 def _require_scipy_linalg(where: str):

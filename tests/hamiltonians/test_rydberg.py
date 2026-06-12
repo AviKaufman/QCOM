@@ -1,4 +1,3 @@
-# tests/test_rydberg_builder.py
 import numpy as np
 import pytest
 
@@ -9,9 +8,7 @@ from qcom.hamiltonians.rydberg import (
 from qcom.lattice_register import LatticeRegister
 
 
-# --------------------------------------------------------------------------------------
 # Minimal register used for tests (duck-typed: len(), .sites, .distances()).
-# --------------------------------------------------------------------------------------
 class FakeRegister:
     def __init__(self, coords: np.ndarray):
         """
@@ -33,9 +30,7 @@ class FakeRegister:
         return D
 
 
-# --------------------------------------------------------------------------------------
 # Helpers (analytic single-qubit reference)
-# --------------------------------------------------------------------------------------
 _SIGMA_X = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=np.float64)
 _SIGMA_Y = np.array([[0.0, -1.0j], [1.0j, 0.0]], dtype=np.complex128)
 _SIGMA_Z = np.array([[1.0, 0.0], [0.0, -1.0]], dtype=np.float64)
@@ -49,9 +44,7 @@ def single_qubit_expected(omega, delta, phi):
     return term_drive - delta * n_op
 
 
-# --------------------------------------------------------------------------------------
 # Tests
-# --------------------------------------------------------------------------------------
 
 
 def test_single_qubit_dense_matches_analytic():

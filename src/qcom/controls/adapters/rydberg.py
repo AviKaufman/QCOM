@@ -1,4 +1,3 @@
-# qcom/controls/adapters/rydberg.py
 from __future__ import annotations
 
 from typing import Mapping, Optional
@@ -29,7 +28,6 @@ class RydbergAdapter(ControlAdapter):
     be a scalar or per-site array and is simply added.
     """
 
-    # ------------------------------------------ Init ------------------------------------------
     def __init__(
         self,
         *,
@@ -47,7 +45,6 @@ class RydbergAdapter(ControlAdapter):
         self._phi_offset = phi_offset
         self._dim = int(hilbert_dim) if hilbert_dim is not None else 0
 
-    # ------------------------------------------ Required by solver ------------------------------------------
     @property
     def required_channels(self) -> tuple[str, ...]:
         # Channels the solver must sample from the TimeSeries
@@ -58,7 +55,6 @@ class RydbergAdapter(ControlAdapter):
         # Return 0 if unknown (solver will skip early size validation).
         return self._dim
 
-    # ------------------------------------------ Plotting hints (optional) ------------------------------------------
     # These are cosmetic helpers some plotting presets may use if available.
     @property
     def plot_labels_abs(self) -> Mapping[str, str]:
@@ -77,22 +73,23 @@ class RydbergAdapter(ControlAdapter):
         # Useful defaults if your TimeSeries is in normalized mode.
         return {"omega": (-0.05, 1.05), "delta": (-1.05, 1.05)}
 
-    # ------------------------------------------ Helpers ------------------------------------------
     def _scale_params_if_needed(
         self,
         controls: Mapping[str, float],
         *,
         normalized: bool = False,
-    ) -> dict:
+    ) -> dict[str, float | np.ndarray]:
         """
         Turn scalar channel samples into arrays if site-wise scaling is configured,
         or leave as scalars otherwise.
         """
-        Omega = controls.get("Omega", 0.0)
-        Delta = controls.get("Delta", 0.0)
-        Phi = controls.get("Phi", 0.0)
+        Omega: float | np.ndarray = controls.get("Omega", 0.0)
+        Delta: float | np.ndarray = controls.get("Delta", 0.0)
+        Phi: float | np.ndarray = controls.get("Phi", 0.0)
 
-        def _maybe_broadcast(x, target):
+        def _maybe_broadcast(
+            x: float | np.ndarray, target: np.ndarray | None
+        ) -> float | np.ndarray:
             if target is None:
                 return x
             return np.asarray(x) * np.ones_like(target, dtype=np.float64)
@@ -113,7 +110,6 @@ class RydbergAdapter(ControlAdapter):
 
         return {"Omega": Omega, "Delta": Delta, "Phi": Phi}
 
-    # ------------------------------------------ Full Hamiltonian path ------------------------------------------
     def hamiltonian_at(self, t: float, controls: Mapping[str, float]):
         """
         Build the full H(t) from current controls using `build_rydberg`.

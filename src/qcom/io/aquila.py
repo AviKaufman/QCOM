@@ -1,4 +1,3 @@
-# qcom/io/aquila.py
 """
 Aquila JSON I/O
 ===============
@@ -7,10 +6,10 @@ Lightweight loader for **QuEra Aquila** JSON task results. This reader extracts
 the computational-basis outcomes from the `measurements[*].shotResult` records
 and returns (counts, total_shots).
 
-Design notes
+Design Notes
 ------------
 - Minimal dependencies (stdlib only); optional progress via ProgressManager.
-- Supports filtering out shots with incomplete `preSequence` when `sorted=True`.
+- Supports filtering out shots with incomplete `preSequence`.
 - Inverts `postSequence` bits (0↔1) to match the historical QCOM convention.
 
 Returns
@@ -20,25 +19,23 @@ Returns
 - total_count : float
     Total number of accepted shots.
 
-Compatibility
--------------
-The parameter name `sorted` matches the legacy API but shadows Python's built-in
-`sorted`. It is kept for backward compatibility.
+Deprecated compatibility aliases keep the legacy `parse_json(..., sorted=...)` entrypoint.
 """
 
 from __future__ import annotations
 
-# -------------------- Imports --------------------
-from .._internal import ProgressManager
 import json
 from typing import Tuple, Dict
 
+from .._internal import ProgressManager
+from .._internal.deprecations import warn_deprecated_alias
 
-# -------------------- Aquila JSON parser --------------------
-def parse_json(
+__all__ = ["parse_aquila_json", "parse_json"]
+
+
+def parse_aquila_json(
     file_path: str,
-    sorted: bool = True,  # keep legacy name for compatibility
-    filter_incomplete: bool | None = None,
+    filter_incomplete: bool = True,
     update_interval: int = 10,
     show_progress: bool = False,
 ) -> Tuple[Dict[str, float], float]:
@@ -49,11 +46,8 @@ def parse_json(
     ----------
     file_path : str
         Path to the Aquila JSON file.
-    sorted : bool, default True
-        If True, discard measurements whose `preSequence` contains missing atoms
-        (i.e., sum(preSequence) != len(preSequence)).
-    filter_incomplete : bool | None, default None
-        Clear alias for `sorted`. If provided, overrides `sorted`.
+    filter_incomplete : bool, default True
+        If True, discard measurements whose `preSequence` contains missing atoms.
     update_interval : int, default 10
         Frequency (in records) for progress updates when `show_progress=True`.
     show_progress : bool, default False
@@ -66,9 +60,8 @@ def parse_json(
     total_count : float
         Total number of accepted shots.
     """
-    data: Dict[str, float] = {}
+    counts: Dict[str, float] = {}
     total_count: float = 0.0
-    should_filter = sorted if filter_incomplete is None else bool(filter_incomplete)
 
     # Load once (entire file typically fits in memory for Aquila result sizes)
     with open(file_path, "r") as f:
@@ -91,7 +84,7 @@ def parse_json(
                 pre_sequence = shot["preSequence"]
 
                 # Optionally discard shots with any missing/invalid atoms
-                if should_filter and sum(pre_sequence) != len(pre_sequence):
+                if filter_incomplete and sum(pre_sequence) != len(pre_sequence):
                     continue
 
                 post_sequence = shot["postSequence"]
@@ -101,7 +94,7 @@ def parse_json(
                 bit_string = "".join(str(x) for x in post_sequence)
 
                 total_count += 1.0
-                data[bit_string] = data.get(bit_string, 0.0) + 1.0
+                counts[bit_string] = counts.get(bit_string, 0.0) + 1.0
 
             except Exception as e:
                 # Keep parsing other lines; surface the offending record for debugging
@@ -110,4 +103,21 @@ def parse_json(
         if show_progress:
             ProgressManager.update_progress(total_steps)
 
-    return data, total_count
+    return counts, total_count
+
+
+def parse_json(
+    file_path: str,
+    sorted: bool = True,  # keep legacy name for compatibility
+    filter_incomplete: bool | None = None,
+    update_interval: int = 10,
+    show_progress: bool = False,
+) -> Tuple[Dict[str, float], float]:
+    """Deprecated compatibility alias for `parse_aquila_json`."""
+    warn_deprecated_alias("parse_json", "parse_aquila_json")
+    return parse_aquila_json(
+        file_path,
+        filter_incomplete=sorted if filter_incomplete is None else bool(filter_incomplete),
+        update_interval=update_interval,
+        show_progress=show_progress,
+    )

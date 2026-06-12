@@ -1,4 +1,3 @@
-# qcom/metrics/states.py
 """
 qcom.metrics.states
 ===================
@@ -25,9 +24,6 @@ import numpy as np
 from .._internal.progress import ProgressManager
 
 
-# -------------------- Construct ρ from a state vector --------------------
-
-
 def create_density_matrix(eigenvector: np.ndarray, show_progress: bool = False) -> np.ndarray:
     """
     Construct the pure-state density matrix ρ = |ψ⟩⟨ψ|.
@@ -48,9 +44,6 @@ def create_density_matrix(eigenvector: np.ndarray, show_progress: bool = False) 
         if show_progress:
             ProgressManager.update_progress(1)
     return rho
-
-
-# -------------------- Reduced density matrix via partial trace --------------------
 
 
 def compute_reduced_density_matrix(

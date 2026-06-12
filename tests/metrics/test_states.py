@@ -1,11 +1,7 @@
-# tests/test_metrics_states.py
 import numpy as np
 import pytest
 
 from qcom.metrics.states import create_density_matrix, compute_reduced_density_matrix
-
-
-# -------------------- Helpers --------------------
 
 
 def is_hermitian(M, tol=1e-12):
@@ -16,9 +12,6 @@ def is_psd(M, tol=1e-12):
     # Numerical PSD check: all eigenvalues >= -tol
     evals = np.linalg.eigvalsh(M)
     return np.all(evals >= -tol)
-
-
-# -------------------- create_density_matrix --------------------
 
 
 def test_create_density_matrix_basic_properties():
@@ -46,9 +39,6 @@ def test_create_density_matrix_real_vector_yields_real_matrix():
     # Exactly one element on diagonal = 1
     assert np.isclose(np.trace(rho), 1.0)
     assert np.isrealobj(rho)
-
-
-# -------------------- compute_reduced_density_matrix --------------------
 
 
 def test_partial_trace_two_qubits_trace_out_one():
@@ -118,9 +108,6 @@ def test_partial_trace_preserves_trace_for_mixed_state():
     # The marginal should be diag([0.3, 0.7])
     expected = np.diag([0.3, 0.7])
     assert np.allclose(rdm, expected)
-
-
-# -------------------- Error handling --------------------
 
 
 def test_compute_reduced_density_matrix_raises_on_bad_shape():

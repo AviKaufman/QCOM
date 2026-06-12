@@ -1,4 +1,3 @@
-# qcom/controls/__init__.py
 """
 QCOM Controls
 

@@ -1,4 +1,3 @@
-# tests/test_solvers_static.py
 import numpy as np
 import pytest
 
@@ -13,9 +12,6 @@ from qcom.solvers.static import (
     find_eigenstate,
     full_dense_spectrum,
 )
-
-
-# -------------------- as_linear_operator --------------------
 
 
 def test_as_linear_operator_dense_matvec_and_dim():
@@ -40,9 +36,6 @@ def test_as_linear_operator_sparse_matvec_and_dim():
     assert is_herm in (None, True, False)
 
 
-# -------------------- eigensolve core --------------------
-
-
 def test_eigensolve_hermitian_matches_numpy_eigh_smallest_two():
     rng = np.random.default_rng(0)
     M = rng.normal(size=(5, 5))
@@ -61,9 +54,6 @@ def test_eigensolve_hermitian_matches_numpy_eigh_smallest_two():
         lam = np.real(evals[i])
         vec = evecs[:, i]
         assert np.allclose(H @ vec, lam * vec, atol=1e-6)
-
-
-# -------------------- ground_state & find_eigenstate --------------------
 
 
 def test_ground_state_on_diagonal():
@@ -88,9 +78,6 @@ def test_find_eigenstate_by_index():
     e1_vec = np.zeros_like(d, dtype=np.complex128)
     e1_vec[1] = 1.0
     assert np.isclose(np.abs(np.vdot(e1_vec, v1)), 1.0, atol=1e-8)
-
-
-# -------------------- full_dense_spectrum --------------------
 
 
 def test_full_dense_spectrum_matches_numpy_hermitian():

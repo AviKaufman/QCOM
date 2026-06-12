@@ -33,21 +33,10 @@ A LatticeRegister exposes:
     - 'distances()': pairwise distance matrix in meters (NxN)
 
 Builders should depend only on this contract.
-
-Future extensions (non-breaking)
---------------------------------
-• Tolerance-based duplicate detection or minimum-spacing checks.
-• Named sites / tags with index maps (e.g., {"A0": 0, "A1": 1}).
-• Export/import: JSON, CSV, or QuEra/AHS-compatible formats.
-• Visualization helpers (2D/3D plots, blockade graphs).
 """
-
-# ------------------------------------------ Imports ------------------------------------------
 
 import numpy as np
 from collections.abc import Iterable
-
-# ------------------------------------------ LatticeRegister Class ------------------------------------------
 
 
 class LatticeRegister:
@@ -58,8 +47,6 @@ class LatticeRegister:
       • Coordinates are 3D (x, y, z) in SI meters.
       • Indexing is insertion order. (MSB ↔ site 0 by QCOM convention.)
     """
-
-    # ------------------------------------------ Construction and Attributes ------------------------------------------
 
     def __init__(self, positions: Iterable[tuple[float, float, float]] | None = None):
         """
@@ -114,8 +101,6 @@ class LatticeRegister:
         # Normalize storage (internal, mutable).
         self._pos = np.ascontiguousarray(arr, dtype=np.float64)
 
-    # ------------------------------------------ Properties ------------------------------------------
-
     @property
     def positions(self) -> np.ndarray:
         """
@@ -128,8 +113,6 @@ class LatticeRegister:
         view = self._pos.view()
         view.setflags(write=False)  # freeze the view, not the internal array
         return view
-
-    # ------------------------------------------ Methods ------------------------------------------
 
     def __len__(self) -> int:
         """Return the number of sites in the register."""

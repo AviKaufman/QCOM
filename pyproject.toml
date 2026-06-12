@@ -85,12 +85,7 @@ indent-style = "space"
 
 [tool.mypy]
 python_version = "3.10"
-files = [
-  "src/qcom/core",
-  "src/qcom/hamiltonians",
-  "src/qcom/metrics/classical.py",
-  "src/qcom/__init__.py",
-]
+files = ["src/qcom"]
 ignore_missing_imports = true
 warn_unused_ignores = true
 show_error_codes = true

@@ -1,17 +1,12 @@
-# tests/test_rydberg_adapter.py
 import numpy as np
 import scipy.sparse as sp
 
 from qcom.controls.adapters.rydberg import RydbergAdapter
 
 
-# --- Minimal register stub (adapter only needs .sites length for a cached hint) ---
 class _DummyRegister:
     def __init__(self, n_sites=2):
         self.sites = [(float(i), 0.0, 0.0) for i in range(n_sites)]
-
-
-# --- Dummy Hamiltonian containers used by monkeypatched build_rydberg ---
 
 
 class _DummyH_Sparse:
@@ -42,9 +37,7 @@ class _DummyH_Dense:
         return self._mat
 
 
-# ------------------------------------------------------------------------------------
 # Basic properties
-# ------------------------------------------------------------------------------------
 
 
 def test_required_channels_and_dimension_hint():
@@ -57,9 +50,7 @@ def test_required_channels_and_dimension_hint():
     assert ad_hint.dimension == 4
 
 
-# ------------------------------------------------------------------------------------
 # Absolute mode (no per-site scaling arrays provided) → broadcast if arrays exist
-# ------------------------------------------------------------------------------------
 
 
 def test_hamiltonian_at_absolute_mode_monkeypatched_sparse(monkeypatch):
@@ -92,9 +83,7 @@ def test_hamiltonian_at_absolute_mode_monkeypatched_sparse(monkeypatch):
     assert np.isscalar(captured["Phi"]) and captured["Phi"] == controls["Phi"]
 
 
-# ------------------------------------------------------------------------------------
 # Normalized mode (per-site scaling provided) → scale controls elementwise
-# ------------------------------------------------------------------------------------
 
 
 def test_hamiltonian_at_normalized_scaling_with_phi_offset_scalar(monkeypatch):
@@ -167,9 +156,7 @@ def test_hamiltonian_at_absolute_broadcast_and_phi_offset_array(monkeypatch):
     np.testing.assert_allclose(captured["Phi"], controls["Phi"] + phi_offset)
 
 
-# ------------------------------------------------------------------------------------
 # Dense fallback when no .to_sparse(), but .to_matrix() exists
-# ------------------------------------------------------------------------------------
 
 
 def test_dense_fallback_when_no_sparse(monkeypatch):
@@ -190,9 +177,7 @@ def test_dense_fallback_when_no_sparse(monkeypatch):
     np.testing.assert_array_equal(H, returned["obj"]._mat)
 
 
-# ------------------------------------------------------------------------------------
 # Cosmetic plotting hints (existence and basic structure)
-# ------------------------------------------------------------------------------------
 
 
 def test_plotting_hints_shapes():

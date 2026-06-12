@@ -1,4 +1,3 @@
-# qcom/hamiltonians/rydberg.py
 """
 Rydberg Hamiltonian Builders
 
@@ -44,13 +43,6 @@ Design Philosophy
 
 • Broadcasting: scalars automatically expand to arrays for site dependence,
   keeping simple use cases concise while preserving flexibility.
-
-Future Extensions (non-breaking)
---------------------------------
-• Support for time dependence via `TimeSeries`.
-• Optional constraints (e.g., blockade Hilbert-space reduction).
-• Additional terms (e.g., longitudinal fields, disorder).
-• GPU-backed backends and tensor-network interfaces.
 """
 
 from __future__ import annotations
@@ -61,15 +53,11 @@ from typing import Iterable, Optional, cast
 
 import numpy as np
 
-# -------------------- Local imports --------------------
 from ..lattice_register import LatticeRegister
 
 from .base import BaseHamiltonian
 
 import scipy.sparse as sp
-
-
-# -------------------- Utilities --------------------
 
 
 def _as_1d_float_array(x: float | Iterable[float], n: int, name: str) -> np.ndarray:
@@ -106,9 +94,6 @@ _SIGMA_Z = np.array([[1.0, 0.0], [0.0, -1.0]], dtype=np.float64)
 _I2 = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float64)
 
 
-# -------------------- Data Object --------------------
-
-
 @dataclass(frozen=True)
 class RydbergParams:
     """
@@ -127,9 +112,6 @@ class RydbergParams:
     vij: np.ndarray
 
 
-# -------------------- Main Class --------------------
-
-
 class RydbergHamiltonian(BaseHamiltonian):
     """
     Object-first Rydberg Hamiltonian.
@@ -139,7 +121,6 @@ class RydbergHamiltonian(BaseHamiltonian):
     Provides materialization methods to build dense or sparse matrices.
     """
 
-    # -------------------- Construction --------------------
     def __init__(self, register: LatticeRegister, params: RydbergParams):
         if len(register) != params.omega.size:
             raise ValueError("Parameter length mismatch with register size")
@@ -196,7 +177,6 @@ class RydbergHamiltonian(BaseHamiltonian):
         )
         return cls(register, params)
 
-    # -------------------- Introspection --------------------
     @property
     def num_sites(self) -> int:
         """Number of sites."""
@@ -255,7 +235,6 @@ class RydbergHamiltonian(BaseHamiltonian):
             out[~bit_is_zero] += low_val * psi[flipped[~bit_is_zero]]
         return out
 
-    # -------------------- Dense Backend --------------------
     def to_dense(self) -> np.ndarray:
         """
         Materialize H as a dense (2^N × 2^N) NumPy array.
@@ -326,7 +305,6 @@ class RydbergHamiltonian(BaseHamiltonian):
 
         return H
 
-    # -------------------- Sparse Backend (flip-table build) --------------------
     def to_sparse(self) -> "sp.csr_matrix":
         """
         Materialize H as a sparse CSR matrix (SciPy), built via bit-flip (flip table)
@@ -391,9 +369,6 @@ class RydbergHamiltonian(BaseHamiltonian):
                 H = H.real.astype(np.float64, copy=False)
 
         return H
-
-
-# -------------------- HELPERS: Flip-Table Sparse Build --------------------
 
 
 def _drive_coo_from_bitflips(
@@ -502,9 +477,6 @@ def _interaction_diagonal_from_bits(
     return add_int
 
 
-# -------------------- Kron Helpers (Dense) --------------------
-
-
 def _kron_local_dense(N: int, which: int, op2: np.ndarray, dtype) -> np.ndarray:
     """
     Place a 2×2 operator `op2` on site `which` among N sites (0-indexed),
@@ -516,9 +488,6 @@ def _kron_local_dense(N: int, which: int, op2: np.ndarray, dtype) -> np.ndarray:
         out = block if out is None else np.kron(out, block)
     assert out is not None
     return out.astype(dtype, copy=False)
-
-
-# -------------------- Public Builder --------------------
 
 
 def build_rydberg(

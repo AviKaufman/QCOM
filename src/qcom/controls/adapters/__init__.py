@@ -1,4 +1,3 @@
-# qcom/controls/adapters/__init__.py
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -18,9 +17,3 @@ def get_adapter(key: str, series: TimeSeries) -> ControlAdapter:
         return _registry[key.lower()](series)
     except KeyError as exc:
         raise ValueError(f"No control adapter registered for key={key!r}") from exc
-
-
-# Register Rydberg
-from .rydberg import RydbergAdapter
-
-register_adapter("rydberg", lambda ts: RydbergAdapter(ts))

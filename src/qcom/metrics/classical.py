@@ -1,4 +1,3 @@
-# qcom/metrics/classical.py
 """
 qcom.metrics.classical
 ======================
@@ -30,22 +29,23 @@ from __future__ import annotations
 from typing import Iterable, Sequence
 import numpy as np
 from qcom.core import MutualInformationResult
-from .bitstrings import order_dict, part_dict
+from .bitstrings import marginalize_bitstring_distribution, sort_bitstring_distribution
 
 
-# -------------------- Helpers --------------------
-
-
-def _validate_prob_dict(prob_dict: dict[str, float]) -> None:
-    if not isinstance(prob_dict, dict):
-        raise TypeError("Expected 'prob_dict' to be a dict[str, float].")
-    if len(prob_dict) == 0:
+def _validate_probabilities(bitstring_probabilities: dict[str, float]) -> None:
+    if not isinstance(bitstring_probabilities, dict):
+        raise TypeError("Expected 'bitstring_probabilities' to be a dict[str, float].")
+    if len(bitstring_probabilities) == 0:
         raise ValueError("Empty probability dictionary.")
-    for k, v in prob_dict.items():
-        if not isinstance(k, str) or any(c not in "01" for c in k) or len(k) == 0:
-            raise ValueError(f"Invalid bitstring key {k!r}.")
-        if v < 0:
-            raise ValueError(f"Negative probability for key {k!r}: {v}.")
+    for bitstring, probability in bitstring_probabilities.items():
+        if (
+            not isinstance(bitstring, str)
+            or any(char not in "01" for char in bitstring)
+            or len(bitstring) == 0
+        ):
+            raise ValueError(f"Invalid bitstring key {bitstring!r}.")
+        if probability < 0:
+            raise ValueError(f"Negative probability for key {bitstring!r}: {probability}.")
 
 
 def _entropy_from_values(values: Iterable[float], *, total: float | None, base: float) -> float:
@@ -81,13 +81,8 @@ def _indices_from_configuration(configuration: Sequence[int], target_region: int
 
 
 def _marginal(prob_dict: dict[str, float], indices: Sequence[int]) -> dict[str, float]:
-    # Use part_dict (MSB=0 convention) to extract the positions in 'indices'
-    reduced = part_dict(prob_dict, indices)
-    # Preserve a deterministic order for downstream debugging/printing
-    return order_dict(reduced)
-
-
-# -------------------- Shannon Entropy --------------------
+    reduced = marginalize_bitstring_distribution(prob_dict, indices)
+    return sort_bitstring_distribution(reduced)
 
 
 def compute_shannon_entropy(
@@ -108,11 +103,8 @@ def compute_shannon_entropy(
     Returns:
         float: Shannon entropy.
     """
-    _validate_prob_dict(prob_dict)
+    _validate_probabilities(prob_dict)
     return _entropy_from_values(prob_dict.values(), total=total_prob, base=base)
-
-
-# -------------------- Reduced Shannon Entropy --------------------
 
 
 def compute_reduced_shannon_entropy(
@@ -140,7 +132,7 @@ def compute_reduced_shannon_entropy(
     Returns:
         float: Reduced Shannon entropy H(P_subsystem).
     """
-    _validate_prob_dict(prob_dict)
+    _validate_probabilities(prob_dict)
 
     if indices is None:
         idxs = _indices_from_configuration(configuration, target_region)  # type: ignore[arg-type]
@@ -152,9 +144,6 @@ def compute_reduced_shannon_entropy(
     reduced = _marginal(prob_dict, idxs)
     total = sum(reduced.values())
     return _entropy_from_values(reduced.values(), total=total, base=base)
-
-
-# -------------------- Mutual Information --------------------
 
 
 def compute_mutual_information(
@@ -187,7 +176,7 @@ def compute_mutual_information(
             If ``return_components=True``, returns I(A:B) plus H(A), H(B),
             and H(AB).
     """
-    _validate_prob_dict(prob_dict)
+    _validate_probabilities(prob_dict)
 
     # Decide indices
     if a_indices is None or b_indices is None:
@@ -200,26 +189,23 @@ def compute_mutual_information(
         b_indices = list(int(i) for i in b_indices)
 
     # Entropies of marginals and joint
-    H_AB = compute_shannon_entropy(prob_dict, total_prob=None, base=base)
+    h_ab = compute_shannon_entropy(prob_dict, total_prob=None, base=base)
 
-    A = _marginal(prob_dict, a_indices)
-    H_A = _entropy_from_values(A.values(), total=sum(A.values()), base=base)
+    a_marginal = _marginal(prob_dict, a_indices)
+    h_a = _entropy_from_values(a_marginal.values(), total=sum(a_marginal.values()), base=base)
 
-    B = _marginal(prob_dict, b_indices)
-    H_B = _entropy_from_values(B.values(), total=sum(B.values()), base=base)
+    b_marginal = _marginal(prob_dict, b_indices)
+    h_b = _entropy_from_values(b_marginal.values(), total=sum(b_marginal.values()), base=base)
 
-    I_AB = H_A + H_B - H_AB
+    mutual_information = h_a + h_b - h_ab
     if return_components:
         return MutualInformationResult(
-            mutual_information=I_AB,
-            h_a=H_A,
-            h_b=H_B,
-            h_ab=H_AB,
+            mutual_information=mutual_information,
+            h_a=h_a,
+            h_b=h_b,
+            h_ab=h_ab,
         )
-    return I_AB
-
-
-# -------------------- Conditional Entropy --------------------
+    return mutual_information
 
 
 def compute_conditional_entropy(
@@ -248,7 +234,7 @@ def compute_conditional_entropy(
     Returns:
         float: H(A|B)
     """
-    _validate_prob_dict(prob_dict)
+    _validate_probabilities(prob_dict)
 
     # Determine B indices
     if b_indices is None:
@@ -258,9 +244,9 @@ def compute_conditional_entropy(
     else:
         b_indices = list(int(i) for i in b_indices)
 
-    H_AB = compute_shannon_entropy(prob_dict, total_prob=None, base=base)
+    h_ab = compute_shannon_entropy(prob_dict, total_prob=None, base=base)
 
-    B = _marginal(prob_dict, b_indices)
-    H_B = _entropy_from_values(B.values(), total=sum(B.values()), base=base)
+    b_marginal = _marginal(prob_dict, b_indices)
+    h_b = _entropy_from_values(b_marginal.values(), total=sum(b_marginal.values()), base=base)
 
-    return H_AB - H_B
+    return h_ab - h_b

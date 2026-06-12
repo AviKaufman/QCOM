@@ -1,4 +1,3 @@
-# tests/test_metrics_entanglement.py
 import numpy as np
 import pytest
 
@@ -7,9 +6,6 @@ from qcom.metrics.entanglement import (
     von_neumann_entropy_from_state,
     von_neumann_entropy_from_hamiltonian,
 )
-
-
-# -------------------- Helpers --------------------
 
 
 def bell_phi_plus():
@@ -34,17 +30,11 @@ def _isclose(a, b, rtol=1e-10, atol=1e-12):
     return np.isclose(a, b, rtol=rtol, atol=atol)
 
 
-# -------------------- von_neumann_entropy_from_rdm --------------------
-
-
 def test_entropy_rdm_handles_zero_eigenvalues_safely():
     # RDM with eigenvalues [1, 0] ⇒ entropy 0 (no log(0) issues)
     rdm = np.array([[1.0, 0.0], [0.0, 0.0]], dtype=float)
     S = von_neumann_entropy_from_rdm(rdm, base=2)
     assert _isclose(S, 0.0)
-
-
-# -------------------- von_neumann_entropy_from_state --------------------
 
 
 def test_entropy_from_state_product_zero():
@@ -71,9 +61,6 @@ def test_entropy_from_state_validates_power_of_two_and_config_len():
         von_neumann_entropy_from_state(
             np.array([1, 0, 0, 0], dtype=np.complex128), configuration=[1, 0, 0]
         )
-
-
-# -------------------- von_neumann_entropy_from_hamiltonian --------------------
 
 
 def test_entropy_from_hamiltonian_bell_ground_state():

@@ -1,9 +1,8 @@
-# qcom/io/parquet.py
 """
 Parquet I/O
 ===========
 
-Lightweight utilities to save and load probability distributions (bitstring → prob)
+Lightweight utilities to save and load probability distributions (bitstring -> probability)
 using the Apache Parquet format via pandas.
 
 Design notes
@@ -14,80 +13,97 @@ Design notes
 
 Functions
 ---------
-- parse_parq(file_name, show_progress=False)
+- parse_parquet(file_path, show_progress=False)
     → Load a parquet file into a dictionary {state: probability}.
-- save_dict_to_parquet(data_dict, file_name)
+- save_parquet(bitstring_probabilities, output_path)
     → Save a dictionary {state: probability} into a parquet file.
 """
 
 from __future__ import annotations
 
-# -------------------- Imports --------------------
-from .._internal import ProgressManager
 import pandas as pd
 from typing import Dict
 
+from .._internal import ProgressManager
+from .._internal.deprecations import warn_deprecated_alias
 
-# -------------------- Parquet reader --------------------
-def parse_parquet(file_name: str, show_progress: bool = False) -> Dict[str, float]:
+__all__ = ["parse_parquet", "save_parquet", "save_dict_to_parquet"]
+
+
+def parse_parquet(
+    file_path: str | None = None,
+    show_progress: bool = False,
+    *,
+    file_name: str | None = None,
+) -> Dict[str, float]:
     """
     Read a Parquet file into a {state: probability} dictionary.
 
     Parameters
     ----------
-    file_name : str
+    file_path : str
         Path to the Parquet file to read.
     show_progress : bool, default False
         Whether to display progress updates.
+    file_name : str | None, optional
+        Compatibility keyword for older callers. Prefer `file_path`.
 
     Returns
     -------
     dict[str, float]
         Mapping from state strings to probabilities.
     """
+    if file_path is None:
+        if file_name is None:
+            raise TypeError("parse_parquet: provide 'file_path'.")
+        warn_deprecated_alias("parse_parquet(file_name=...)", "parse_parquet(file_path=...)")
+        file_path = file_name
+    elif file_name is not None:
+        raise TypeError("parse_parquet: use either 'file_path' or 'file_name', not both.")
+
     total_steps = 2
     with (
         ProgressManager.progress("Parsing Parquet file", total_steps=total_steps)
         if show_progress
         else ProgressManager.dummy_context()
     ):
-        # --- Step 1: Read file into DataFrame ---
-        df = pd.read_parquet(file_name, engine="pyarrow")
+        df = pd.read_parquet(file_path, engine="pyarrow")
         if show_progress:
             ProgressManager.update_progress(1)
 
-        # --- Step 2: Convert DataFrame to dictionary ---
-        data_dict = dict(zip(df["state"], df["probability"]))
+        bitstring_probabilities = dict(zip(df["state"], df["probability"]))
         if show_progress:
             ProgressManager.update_progress(2)
 
-    return data_dict
+    return bitstring_probabilities
 
 
-# -------------------- Parquet writer --------------------
-def save_dict_to_parquet(data_dict: Dict[str, float], file_name: str) -> None:
+def save_parquet(bitstring_probabilities: Dict[str, float], output_path: str) -> None:
     """
     Save a dictionary {state: probability} to a Parquet file.
 
     Parameters
     ----------
-    data_dict : dict[str, float]
+    bitstring_probabilities : dict[str, float]
         Dictionary mapping states to probabilities.
-    file_name : str
+    output_path : str
         Output Parquet filename.
     """
     total_steps = 3
     with ProgressManager.progress("Saving dictionary to Parquet", total_steps=total_steps):
-        # --- Step 1: Convert dict to list of items ---
-        items = list(data_dict.items())
+        items = list(bitstring_probabilities.items())
         ProgressManager.update_progress(1)
 
-        # --- Step 2: Create DataFrame ---
         df = pd.DataFrame(items, columns=["state", "probability"])
         ProgressManager.update_progress(2)
 
-        # --- Step 3: Write to Parquet file ---
-        df.to_parquet(file_name, engine="pyarrow", index=False)
+        df.to_parquet(output_path, engine="pyarrow", index=False)
         ProgressManager.update_progress(3)
 
-    print(f"Dictionary saved to {file_name}")
+    print(f"Dictionary saved to {output_path}")
+
+
+def save_dict_to_parquet(data_dict: Dict[str, float], file_name: str) -> None:
+    """Deprecated compatibility alias for `save_parquet`."""
+    warn_deprecated_alias("save_dict_to_parquet", "save_parquet")
+    save_parquet(data_dict, output_path=file_name)

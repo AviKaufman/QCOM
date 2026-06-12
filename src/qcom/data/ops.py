@@ -1,45 +1,18 @@
-# qcom/data/ops.py
 """
 Basic dictionary operations for QCOM probability data.
-
-Goal
-----
-Provide lightweight, composable utilities for transforming and inspecting
-probability distributions derived from quantum bitstring data.
-
-Scope (current)
----------------
-• Normalization of raw counts into probability dictionaries.
-• Truncation of low-probability entries without renormalization.
-• Formatted printing of the most probable bit strings.
-
-Design notes
-------------
-• Keep stateless, pure functions: input → output, no hidden side effects.
-• Avoid heavy dependencies — all functions are standard Python only.
-• Functions assume input is a dictionary mapping bitstrings → floats.
-
-Typical usage
--------------
->>> from qcom.data.ops import normalize_to_probabilities, truncate_probabilities
->>> counts = {"00": 50, "01": 25, "10": 25, "11": 0}
->>> probs = normalize_to_probabilities(counts, total_count=100)
->>> truncated = truncate_probabilities(probs, threshold=0.2)
->>> print_most_probable_data(probs, n=2)
-
-Future extensions (non-breaking)
---------------------------------
-• Optional renormalization after truncation.
-• Sorting helpers (by Hamming weight, lexicographic order, etc.).
-• Export utilities (CSV/JSON pretty-print).
 """
 
 from typing import Dict
 
+from qcom._internal.deprecations import warn_deprecated_alias
 from qcom.core import CountsData, ProbabilityData
 
-
-# ========================================== Probability Operations ==========================================
+__all__ = [
+    "normalize_to_probabilities",
+    "truncate_probabilities",
+    "print_most_probable_bitstrings",
+    "print_most_probable_data",
+]
 
 
 def normalize_to_probabilities(
@@ -61,7 +34,6 @@ def normalize_to_probabilities(
     Raises:
         ValueError: If total_count is None or zero.
     """
-    # -------------------- Validation --------------------
     source = None
     if isinstance(data, CountsData):
         counts = data.to_dict()
@@ -75,14 +47,10 @@ def normalize_to_probabilities(
     if total_count == 0:
         raise ValueError("Total count is zero; cannot normalize to probabilities.")
 
-    # -------------------- Core Computation --------------------
     probabilities = {key: value / total_count for key, value in counts.items()}
     if return_data:
         return ProbabilityData(probabilities, source=source)
     return probabilities
-
-
-# ========================================== Truncation Operations ==========================================
 
 
 def truncate_probabilities(input_dict: Dict[str, float], threshold: float) -> Dict[str, float]:
@@ -96,32 +64,31 @@ def truncate_probabilities(input_dict: Dict[str, float], threshold: float) -> Di
     Returns:
         dict: Filtered dictionary with only entries >= threshold.
     """
-    # -------------------- Core Computation --------------------
     return {bitstring: prob for bitstring, prob in input_dict.items() if prob >= threshold}
 
 
-# ========================================== Output / Reporting ==========================================
-
-
-def print_most_probable_data(normalized_data: Dict[str, float], n: int = 10) -> None:
+def print_most_probable_bitstrings(probabilities: Dict[str, float], n: int = 10) -> None:
     """
     Print the `n` most probable bit strings in descending order.
 
     Args:
-        normalized_data (dict): Dictionary mapping bit strings to probabilities.
+        probabilities (dict): Dictionary mapping bit strings to probabilities.
         n (int): Number of top entries to print.
     """
-    # -------------------- Sorting --------------------
-    sorted_data = sorted(normalized_data.items(), key=lambda x: x[1], reverse=True)
+    sorted_probabilities = sorted(probabilities.items(), key=lambda item: item[1], reverse=True)
 
     print(f"Top {n} Most probable bit strings:")
 
-    # Determine index width for aligned output (e.g., " 1.", "10.")
     max_index_width = len(str(n))
 
-    # -------------------- Printing --------------------
-    for idx, (sequence, probability) in enumerate(sorted_data[:n], start=1):
+    for index, (bitstring, probability) in enumerate(sorted_probabilities[:n], start=1):
         print(
-            f"{str(idx).rjust(max_index_width)}.  "
-            f"Bit string: {sequence}, Probability: {probability:.8f}"
+            f"{str(index).rjust(max_index_width)}.  "
+            f"Bit string: {bitstring}, Probability: {probability:.8f}"
         )
+
+
+def print_most_probable_data(normalized_data: Dict[str, float], n: int = 10) -> None:
+    """Deprecated compatibility alias for `print_most_probable_bitstrings`."""
+    warn_deprecated_alias("print_most_probable_data", "print_most_probable_bitstrings")
+    print_most_probable_bitstrings(normalized_data, n=n)

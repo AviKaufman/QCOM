@@ -1,4 +1,3 @@
-# qcom/io/text.py
 """
 Plaintext I/O
 =============
@@ -18,22 +17,24 @@ Design notes
 
 Functions
 ---------
-- parse_file(file_path, update_interval=500000, show_progress=False)
+- parse_text(file_path, update_interval=500000, show_progress=False)
     → Load a text file into a dictionary {state: count}, with total count returned separately.
-- save_data(data, savefile, update_interval=100, show_progress=False)
+- save_text(data, output_path, update_interval=100, show_progress=False)
     → Save a dictionary {state: count/prob} back to text format.
 """
 
 from __future__ import annotations
 
-# -------------------- Imports --------------------
-from .._internal import ProgressManager
 import os
 from typing import Dict, Tuple
 
+from .._internal import ProgressManager
+from .._internal.deprecations import warn_deprecated_alias
 
-# -------------------- Text reader --------------------
-def parse_file(
+__all__ = ["parse_text", "save_text", "parse_file", "save_data"]
+
+
+def parse_text(
     file_path: str,
     update_interval: int = 500_000,
     show_progress: bool = False,
@@ -94,10 +95,9 @@ def parse_file(
     return data, total_count
 
 
-# -------------------- Text writer --------------------
-def save_data(
+def save_text(
     data: Dict[str, float],
-    savefile: str,
+    output_path: str,
     update_interval: int = 100,
     show_progress: bool = False,
 ) -> None:
@@ -112,7 +112,7 @@ def save_data(
     ----------
     data : dict[str, float]
         Mapping from states to counts/probabilities.
-    savefile : str
+    output_path : str
         Path to the file where the data will be written.
     update_interval : int, default 100
         Frequency (in states) at which to update progress if enabled.
@@ -122,7 +122,7 @@ def save_data(
     states = list(data.keys())
     total_states = len(states)
 
-    with open(savefile, "w") as f:
+    with open(output_path, "w") as f:
         with (
             ProgressManager.progress("Saving data", total_steps=total_states)
             if show_progress
@@ -136,3 +136,33 @@ def save_data(
 
             if show_progress:
                 ProgressManager.update_progress(total_states)  # Ensure 100% completion
+
+
+def parse_file(
+    file_path: str,
+    update_interval: int = 500_000,
+    show_progress: bool = False,
+) -> Tuple[Dict[str, float], float]:
+    """Deprecated compatibility alias for `parse_text`."""
+    warn_deprecated_alias("parse_file", "parse_text")
+    return parse_text(
+        file_path,
+        update_interval=update_interval,
+        show_progress=show_progress,
+    )
+
+
+def save_data(
+    data: Dict[str, float],
+    savefile: str,
+    update_interval: int = 100,
+    show_progress: bool = False,
+) -> None:
+    """Deprecated compatibility alias for `save_text`."""
+    warn_deprecated_alias("save_data", "save_text")
+    save_text(
+        data,
+        output_path=savefile,
+        update_interval=update_interval,
+        show_progress=show_progress,
+    )

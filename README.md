@@ -2,185 +2,142 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/QCOM.svg)](https://pypi.org/project/QCOM/)
 [![Python versions](https://img.shields.io/pypi/pyversions/QCOM.svg)](https://pypi.org/project/QCOM/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/AviKaufman/QCOM/blob/main/LICENSE.txt)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE.txt)
 
-**Quantum Computation (QCOM)** is a Python package originally developed as part of Avi Kaufman’s 2025 honors thesis, and now maintained as an **ongoing project for quantum systems research**.
+**Quantum Computation (QCOM)** is a lightweight Python toolkit for building
+model Hamiltonians, evolving states, and analyzing classical or quantum
+information measures from simulated and experimental bitstring data.
 
-QCOM offers a lightweight, extensible toolkit for building model Hamiltonians, evolving states, and analyzing classical/quantum information measures from simulated or experimental bitstring data.
+## Start Here
 
----
+Use this README for installation, quick usage, and the main development entry
+points. The rest of the Markdown set has one job per file:
 
-## 📦 Installation
+| Need | Start With |
+| --- | --- |
+| Understand the package architecture and data flow | [repo-landscape.md](repo-landscape.md) |
+| Follow naming, comments, Markdown, testing, and PR standards | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Pick up known issues, maintenance work, or future features | [ROADMAP.md](ROADMAP.md) |
+| Learn workflows step by step | [tutorials](tutorials) |
+| Run small script examples | [examples](examples) |
+
+## Installation
 
 ```bash
 pip install QCOM
 ```
 
-Upgrade to the latest release:
-
-```bash
-pip install --upgrade QCOM
-```
-
-For local development, QCOM uses a `src/` layout:
+For local development, install the editable package with the common extras:
 
 ```bash
 python -m pip install -e ".[dev,parquet,viz]"
 ```
 
-
-⸻
-
-✅ Quick check in python
+Quick import check:
 
 ```python
 import qcom
+
 print("QCOM version:", qcom.__version__)
 ```
 
+## Core Capabilities
 
-⸻
+- Hamiltonians: Rydberg and transverse-field Ising builders with dense, sparse,
+  and matvec-oriented backends.
+- Solvers: static eigen-solvers, ground-state helpers, dense spectra for small
+  systems, and dynamic evolution with `expm_multiply`.
+- Metrics: Shannon entropy, conditional entropy, mutual information, von
+  Neumann entanglement entropy, cumulative distributions, N(p), and
+  statevector-to-probability helpers.
+- Data utilities: counts/probability containers, normalization, sampling,
+  dataset combination, readout-error simulation, and optional `mthree`
+  mitigation.
+- I/O: plaintext, Parquet, and QuEra Aquila JSON readers.
+- Visualization: lattice-register and control-envelope plotting helpers.
 
-## ✨ Core Capabilities
+QCOM uses the MSB-to-site-0 convention by default. Functions that expose
+endianness controls document the alternate little-endian labeling explicitly.
 
-- **Hamiltonians**
-  - Exact builders for **Rydberg** systems (chains/ladders)
-  - Working **transverse-field Ising** Hamiltonians with dense, sparse, and matvec backends
+## Quick Usage
 
-- **Solvers**
-  - *Static*: thin-spectrum eigen solve, ground-state utilities, dense full spectrum for small systems
-  - *Dynamic*: generic time evolution under time-dependent Hamiltonians via `expm_multiply`
+```python
+from qcom import LatticeRegister, build_ising, ground_state
 
-- **Metrics**
-  - *Classical*: Shannon entropy, conditional entropy, mutual information
-  - *Quantum*: von Neumann entanglement entropy (from state vectors, density matrices, or Hamiltonians)
-  - *Probability tools*: cumulative distributions, N(p) diagnostic, statevector → probabilities
-
-- **Data & Noise**
-  - Parse/normalize/sample binary datasets (Plaintext, **Parquet**, **Aquila JSON**)
-  - Readout noise models (bit-flip) and optional mitigation via `mthree`
-
-- **I/O**
-  - Save/load in plaintext and Parquet
-  - Lightweight JSON reader for QuEra **Aquila** results
-
-- **Developer Ergonomics**
-  - `ProgressManager` hooks for long tasks
-  - Clear conventions (MSB ↔ site 0), endianness controls where relevant
-
----
-
-## 🚀 Examples
-
-- Build a ladder Rydberg Hamiltonian and compute its ground-state entropy
-- Parse measurement data (e.g., from Aquila) and evaluate **mutual information**
-- Simulate **readout error** on a probability distribution and apply mitigation
-- Sample and **merge** large bitstring datasets for statistical analysis
-
----
-
-## 📚 Tutorials
-
-Step-by-step notebooks live in the repository:
-
-- **Tutorials directory**:  
-  https://github.com/AviKaufman/QCOM/tree/main/tutorials
-
-Suggested order:
-1. I/O basics (text, JSON, Parquet)  
-2. Lattice registers and geometry  
-3. Rydberg Hamiltonians  
-4. Static eigen solvers (ground states)  
-5. Control time series  
-6. Dynamic time evolution  
-7. Data utilities (noise, sampling, mitigation)  
-8. Metrics (classical + entanglement)
-
----
-
-## 🧪 Testing
-
-From the project root:
-
-```bash
-python -m pip install -e ".[dev,parquet,viz]"
-pytest
+register = LatticeRegister([(0.0, 0.0, 0.0), (1.0e-6, 0.0, 0.0)])
+hamiltonian = build_ising(register, transverse_field=1.0, longitudinal_field=0.2)
+energy, state = ground_state(hamiltonian)
 ```
 
-Developer task runner:
+```python
+from qcom.data import CountsData, normalize_to_probabilities, sample_counts
 
-```bash
-nox -s lint typecheck test build
+counts = CountsData({"00": 10, "11": 5})
+probabilities = normalize_to_probabilities(counts)
+sampled_counts = sample_counts(counts.to_dict(), total_count=counts.shots, sample_size=100)
 ```
-⸻
-
-📂 Example Data
-
-Curated toy datasets for quick experiments:  
-- https://github.com/AviKaufman/QCOM/tree/main/example_data
-
-⸻
-
-🗺️ Roadmap
-- New Hamiltonians: Heisenberg and additional lattice models
-- Parameter sweeps for large optimization workloads
-- Tensor-network methods: DMRG / TEBD for large Hilbert spaces
-- Expanded I/O readers and richer plotting presets
-
-Community feedback helps shape priorities—feel free to open issues or PRs.
-
-⸻
-
-🤝 Contributing
-
-We welcome contributions of all sizes:
-
-- Bug reports, minimal reproductions
-- Tests and doc improvements
-- New examples/tutorials
-- Feature proposals via GitHub Issues
-
-Please follow the project standards in [CONTRIBUTING.md](CONTRIBUTING.md).
-
-Repo: https://github.com/AviKaufman/QCOM
-
-⸻
-
-📬 Contact
-
-Avi Kaufman — avigkaufman@gmail.com
-
-⸻
-
-Last updated: June 4, 2026
-
----
-
-## API Notes
-
-`compute_mutual_information` returns the scalar mutual information by default:
 
 ```python
 from qcom.metrics import compute_mutual_information
 
 probabilities = {"00": 0.5, "11": 0.5}
-mi = compute_mutual_information(probabilities, configuration=[0, 1], base=2)
-components = compute_mutual_information(
+mutual_information = compute_mutual_information(
     probabilities,
     configuration=[0, 1],
     base=2,
-    return_components=True,
 )
-print(mi, components.h_a, components.h_b, components.h_ab)
 ```
 
-Typed measurement containers are available for explicit counts/probability workflows:
+## Examples And Tutorials
 
-```python
-from qcom.data import CountsData, normalize_to_probabilities
+Runnable scripts live in [examples](examples). Step-by-step notebooks live in
+[tutorials](tutorials) and should remain output-free in git.
 
-counts = CountsData({"00": 10, "11": 5})
-probabilities = normalize_to_probabilities(counts)
+Suggested tutorial order:
+
+1. I/O basics
+2. Lattice registers and geometry
+3. Rydberg Hamiltonians
+4. Static eigen-solvers
+5. Control time series
+6. Dynamic time evolution
+7. Data utilities
+8. Metrics
+
+Validate tutorials after notebook changes:
+
+```bash
+nox -s tutorials
 ```
 
-Plotting helpers live in `qcom.viz`; existing `.plot()` methods remain as wrappers.
+## Development
+
+Contributor standards live in [CONTRIBUTING.md](CONTRIBUTING.md). Run the
+standard checks from the repository root before calling repo work done:
+
+```bash
+nox -s lint typecheck test build
+```
+
+Useful focused gates:
+
+```bash
+nox -s tutorials
+nox -s test_extras
+```
+
+The architecture map in [repo-landscape.md](repo-landscape.md) is the fastest
+way to orient to the package layout before making subsystem changes.
+
+## Data
+
+Curated toy datasets for experiments live in [example_data](example_data).
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the current backlog, known issues, maintenance
+priorities, compatibility policy work, and future feature direction.
+
+## Contact
+
+Avi Kaufman, avigkaufman@gmail.com

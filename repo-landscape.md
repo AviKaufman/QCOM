@@ -1,6 +1,9 @@
 # QCOM Repository Landscape
 
-This document is a source-grounded map of the QCOM repository.
+This document is a source-grounded architecture map of the QCOM repository.
+For installation and first usage, start with [README.md](README.md). For
+contributor standards, use [CONTRIBUTING.md](CONTRIBUTING.md). For planned work
+and known issues, use [ROADMAP.md](ROADMAP.md).
 
 ## 1. What This Repo Is
 
@@ -25,7 +28,10 @@ The code is organized as a `src/`-layout library with tests, examples, and tutor
 - `pyproject.toml`: build metadata, dependencies, lint/typecheck config
 - `noxfile.py`: project task runner
 - `pytest.ini`: pytest defaults
-- `README.md`: project overview and installation guidance
+- `README.md`: project overview, installation guidance, and documentation map
+- `CONTRIBUTING.md`: contributor standards
+- `repo-landscape.md`: architecture map
+- `ROADMAP.md`: backlog, known issues, and future direction
 
 ## 3. Package Boundary Map
 
@@ -39,9 +45,9 @@ It re-exports:
 - Hamiltonians: `build_ising`, `build_rydberg`
 - solvers: `ground_state`, `find_eigenstate`
 - controls: `TimeSeries`, `RydbergAdapter`
-- metrics: entropy, mutual information, probability helpers
-- data: normalization, truncation, sampling, noise
-- I/O: text, JSON, Parquet helpers
+- metrics: entropy, mutual information, probability helpers, N(p) diagnostics
+- data: normalization, truncation, sampling, combining, readout-error helpers
+- I/O: text, Aquila JSON, and Parquet helpers
 - result containers from `core/results.py`
 
 ### Core result types
@@ -136,7 +142,7 @@ Design split:
 
 `src/qcom/metrics/` is the analysis layer.
 
-- `bitstrings.py`: ordering and partitioning helpers for bitstring dictionaries
+- `bitstrings.py`: sorting and marginalization helpers for bitstring distributions
 - `classical.py`: Shannon entropy, reduced entropy, mutual information, conditional entropy
 - `probabilities.py`: cumulative distributions, `N(p)` diagnostics, eigenstate probabilities
 - `states.py`: density matrix and reduced density matrix construction
@@ -151,9 +157,9 @@ The main convention throughout metrics is:
 
 `src/qcom/data/` bridges raw measurement data and analysis.
 
-- `ops.py`: normalize counts, truncate probabilities, print the most probable states
-- `sampling.py`: resample distributions and merge datasets
-- `noise.py`: classical readout error and optional `mthree` mitigation
+- `ops.py`: normalize counts, truncate probabilities, print the most probable bitstrings
+- `sampling.py`: resample counts and combine bitstring datasets
+- `noise.py`: apply readout error and optional `mthree` mitigation
 
 This layer is intentionally simple and mostly dictionary-based.
 
@@ -183,6 +189,7 @@ These are presentation helpers, not core computational dependencies.
 
 - `progress.py`: nested-safe stdout progress reporting
 - `fonts.py`: publication-style serif font selection for plots
+- `deprecations.py`: shared deprecation warnings for compatibility aliases
 
 ## 4. Data Flow
 
@@ -205,9 +212,9 @@ These are presentation helpers, not core computational dependencies.
 
 ### Experimental data path
 
-1. Read raw data with `parse_json`, `parse_file`, or `parse_parquet`
-2. Normalize or resample with `data.ops` and `data.sampling`
-3. Optionally inject or mitigate readout noise
+1. Read raw data with `parse_aquila_json`, `parse_text`, or `parse_parquet`
+2. Normalize or resample with `normalize_to_probabilities`, `sample_counts`, and `combine_bitstring_datasets`
+3. Optionally apply or mitigate readout noise
 4. Compute entropy, mutual information, or distribution diagnostics
 
 ## 5. Cross-Cutting Conventions
@@ -324,6 +331,7 @@ flowchart TB
     subgraph Int["Internal"]
         PM["progress.py"]
         FT["fonts.py"]
+        DP["deprecations.py"]
     end
 
     Q --> LR
@@ -368,6 +376,14 @@ flowchart TB
 
     VG --> FT
     VC --> FT
+    BT --> DP
+    PR --> DP
+    OP --> DP
+    SM --> DP
+    NO --> DP
+    AQ --> DP
+    PX --> DP
+    TX --> DP
     PM --> SS
     PM --> SD
     PM --> TS
@@ -408,4 +424,3 @@ flowchart LR
 - [`/home/avi/dev/tools/QCOM/src/qcom/metrics/classical.py`](/home/avi/dev/tools/QCOM/src/qcom/metrics/classical.py): classical entropy measures
 - [`/home/avi/dev/tools/QCOM/src/qcom/metrics/entanglement.py`](/home/avi/dev/tools/QCOM/src/qcom/metrics/entanglement.py): Von Neumann entropy
 - [`/home/avi/dev/tools/QCOM/scripts/validate_tutorials.py`](/home/avi/dev/tools/QCOM/scripts/validate_tutorials.py): notebook execution validation
-

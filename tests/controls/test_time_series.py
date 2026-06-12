@@ -1,4 +1,3 @@
-# tests/test_time_series.py
 import numpy as np
 import pytest
 import matplotlib
@@ -10,8 +9,6 @@ import matplotlib.pyplot as plt
 from qcom.controls.time_series import TimeSeries
 # If running inside the repo instead, use:
 # from time_series import TimeSeries
-
-# ----------------------------- Fixtures -----------------------------
 
 
 @pytest.fixture
@@ -90,9 +87,6 @@ def ts_norm():
     return ts
 
 
-# ----------------------------- __init__ (constructor) -----------------------------
-
-
 def test_init_empty_ok():
     ts = TimeSeries()
     assert ts.mode == "absolute"
@@ -166,16 +160,10 @@ def test_init_allows_negative_times():
     assert t[0] < 0.0 and t[-1] == 0.0
 
 
-# ----------------------------- normalized-mode bounds -----------------------------
-
-
 def test_init_normalized_phi_unbounded():
     # Phi has no bounds in normalized mode
     ts = TimeSeries(mode="normalized", Phi=([0.0, 1.0], [10.0, -123.456]))
     assert "Phi" in ts._channels
-
-
-# ----------------------------- channels (read-only mapping of read-only arrays) -----------------------------
 
 
 def test_channels_returns_readonly_mapping_and_views():
@@ -212,9 +200,6 @@ def test_channels_empty_mapping_when_no_channels():
         ch["Omega"] = (np.array([0.0]), np.array([0.0]))
 
 
-# ----------------------------- channel_names (order and content) -----------------------------
-
-
 def test_channel_names_reflect_insertion_order():
     # Insert Delta first, then Omega; dicts preserve insertion order in Py3.7+
     ts = TimeSeries(
@@ -233,9 +218,6 @@ def test_channel_names_reflect_insertion_order():
     assert ts3.channel_names == tuple()
 
 
-# ----------------------------- is_empty -----------------------------
-
-
 def test_is_empty_true_for_empty_false_when_channel_present():
     ts = TimeSeries()
     assert ts.is_empty is True
@@ -244,15 +226,9 @@ def test_is_empty_true_for_empty_false_when_channel_present():
     assert ts2.is_empty is False
 
 
-# ----------------------------- __len__ -----------------------------
-
-
 def test_len_counts_channels(ts_multi, ts_empty):
     assert len(ts_empty) == 0
     assert len(ts_multi) == 3
-
-
-# ----------------------------- has_channel -----------------------------
 
 
 def test_has_channel_true_false(ts_multi):
@@ -260,9 +236,6 @@ def test_has_channel_true_false(ts_multi):
     assert ts_multi.has_channel("Delta") is True
     assert ts_multi.has_channel("Phi") is True
     assert ts_multi.has_channel("Nope") is False
-
-
-# ----------------------------- times(name) -----------------------------
 
 
 def test_times_returns_readonly_view_and_matches(ts_multi):
@@ -277,9 +250,6 @@ def test_times_raises_for_missing_channel(ts_multi):
         ts_multi.times("NoSuchChannel")
 
 
-# ----------------------------- values(name) -----------------------------
-
-
 def test_values_returns_readonly_view_and_matches(ts_multi):
     v = ts_multi.values("Delta")
     assert isinstance(v, np.ndarray)
@@ -290,9 +260,6 @@ def test_values_returns_readonly_view_and_matches(ts_multi):
 def test_values_raises_for_missing_channel(ts_multi):
     with pytest.raises(KeyError):
         ts_multi.values("NoSuchChannel")
-
-
-# ----------------------------- domain(name=None) -----------------------------
 
 
 def test_domain_per_channel(ts_multi):
@@ -319,9 +286,6 @@ def test_domain_raises_when_empty(ts_empty):
         ts_empty.domain()
 
 
-# ----------------------------- __repr__ -----------------------------
-
-
 def test_repr_empty():
     ts = TimeSeries()
     s = repr(ts)
@@ -346,9 +310,6 @@ def test_repr_multiple_channels_order_is_insertion_order():
     assert s.index("Delta[L=2") < s.index("Omega[L=1")
 
 
-# ----------------------------- _rel_tol -----------------------------
-
-
 def test_rel_tol_small_and_large():
     # Static method behavior: 1e-12 * max(1, |t|)
     assert TimeSeries._rel_tol(0.0) == pytest.approx(1e-12)
@@ -357,9 +318,6 @@ def test_rel_tol_small_and_large():
     assert TimeSeries._rel_tol(-3.0) == pytest.approx(3.0e-12)
     # Non-float inputs should be cast safely
     assert TimeSeries._rel_tol(np.float64(5.0)) == pytest.approx(5e-12)
-
-
-# ----------------------------- _check_normalized_bounds -----------------------------
 
 
 def test_check_normalized_bounds_noop_in_absolute_mode():
@@ -402,9 +360,6 @@ def test_check_normalized_bounds_phi_unbounded():
     ts = TimeSeries(mode="normalized")
     # Phi is intentionally unbounded in normalized mode
     ts._check_normalized_bounds("Phi", np.array([-1e9, 0.0, 1e9]))
-
-
-# ----------------------------- add_point -----------------------------
 
 
 def test_add_point_creates_channel_and_returns_index(empty_abs):
@@ -480,9 +435,6 @@ def test_add_point_case_insensitive_channel_norm_checks(empty_norm):
     ts.add_point("oMeGa", 0.0, 0.5)  # ok
     with pytest.raises(ValueError):
         ts.add_point("OMEGA", 1.0, 1.1)
-
-
-# ----------------------------- add_series -----------------------------
 
 
 def test_add_series_creates_channel_sorted_and_dedup(empty_abs):
@@ -578,9 +530,6 @@ def test_add_series_tolerance_controls_duplicate_vs_insert(empty_abs):
     np.testing.assert_allclose(ts.values("Omega"), [2.0, 3.0])
 
 
-# ----------------------------- remove_point -----------------------------
-
-
 def test_remove_point_exact_match_middle(base_abs):
     ts = base_abs
     # remove t=1.0 (middle)
@@ -627,9 +576,6 @@ def test_remove_point_missing_channel_raises():
         ts.remove_point("Omega", 0.0)
 
 
-# ----------------------------- remove_at -----------------------------
-
-
 def test_remove_at_middle(base_abs):
     ts = base_abs
     idx = ts.remove_at("Omega", 1)
@@ -663,9 +609,6 @@ def test_remove_at_missing_channel_raises():
         ts.remove_at("Omega", 0)
 
 
-# ----------------------------- clear_channel & clear -----------------------------
-
-
 def test_clear_channel_removes_key(base_norm):
     ts = base_norm
     assert ts.has_channel("Delta")
@@ -685,9 +628,6 @@ def test_clear_removes_all_channels(base_norm):
     # domain() now has no channels -> should raise
     with pytest.raises(ValueError):
         ts.domain()
-
-
-# ----------------------------- shift_time -----------------------------
 
 
 def test_shift_time_no_channels_no_error():
@@ -730,9 +670,6 @@ def test_shift_time_negative_shift(ts_two_channels_abs):
     ts.shift_time(-0.5)
     np.testing.assert_allclose(ts.times("Omega"), np.array([-0.5, 0.5, 1.5]))
     np.testing.assert_allclose(ts.times("Delta"), np.array([0.0, 1.5]))
-
-
-# ----------------------------- normalize_start -----------------------------
 
 
 def test_normalize_start_no_channels_is_noop():
@@ -785,9 +722,6 @@ def test_normalize_then_shift_roundtrip(ts_two_channels_abs):
     np.testing.assert_allclose(ts.times("Delta"), np.array([0.5, 2.0]))
 
 
-# ----------------------------- value_at: basic behavior -----------------------------
-
-
 def test_value_at_interpolates_per_channel(ts_abs):
     # Omega: triangle 0->1->0 over [0,2]
     tq = np.array([0.0, 0.5, 1.0, 1.5, 2.0])
@@ -833,9 +767,6 @@ def test_value_at_boundaries_exact_values(ts_abs):
     np.testing.assert_allclose(out["Omega"], [0.0, 1.0, 0.0])
 
 
-# ----------------------------- value_at: input validation -----------------------------
-
-
 def test_value_at_rejects_non_1d_input(ts_abs):
     with pytest.raises(ValueError):
         ts_abs.value_at([[0.0, 1.0]])  # 2D
@@ -855,9 +786,6 @@ def test_value_at_accepts_generators(ts_abs):
 
     out = ts_abs.value_at(gen(), channels=["Omega"])
     np.testing.assert_allclose(out["Omega"], [0.0, 0.5, 1.0])
-
-
-# ----------------------------- value_at_channel -----------------------------
 
 
 def test_value_at_channel_single(ts_abs):
@@ -880,9 +808,6 @@ def test_value_at_channel_input_validation(ts_abs):
         ts_abs.value_at_channel("Omega", [[0.0, 1.0]])  # 2D
     with pytest.raises(ValueError):
         ts_abs.value_at_channel("Omega", [0.0, np.nan])
-
-
-# ----------------------------- normalized mode sanity -----------------------------
 
 
 def test_value_at_normalized_mode_behaves_same_interpolation(ts_norm):

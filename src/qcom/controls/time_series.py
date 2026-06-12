@@ -51,21 +51,12 @@ Primary use cases
 • Interpolate channel values at arbitrary query times during simulation.
 • Provide envelopes for Hamiltonian evolution; mapping to operators happens
   outside this class.
-
-Future extensions (non-breaking)
---------------------------------
-• Alternate interpolation schemes (e.g., spline).
-• Convenience constructors (ramps, windows, sinusoids).
-• Import/export (JSON, CSV, experiment logs).
-• Optional plotting helpers living outside this generic container.
 """
 
 import numpy as np
 from typing import Literal, Mapping
 from types import MappingProxyType
 from collections.abc import Iterable
-
-# ------------------------------------------ TimeSeries Class ------------------------------------------
 
 
 class TimeSeries:
@@ -74,8 +65,6 @@ class TimeSeries:
 
     See file-level docstring for design guarantees.
     """
-
-    # ------------------------------------------ Constructor and Attributes ------------------------------------------
 
     def __init__(
         self,
@@ -126,8 +115,6 @@ class TimeSeries:
                 np.ascontiguousarray(v, dtype=np.float64),
             )
 
-    # ------------------------------------------ Properties ------------------------------------------
-
     @property
     def channels(self) -> Mapping[str, tuple[np.ndarray, np.ndarray]]:
         """
@@ -166,8 +153,6 @@ class TimeSeries:
             bool: True if empty, False otherwise.
         """
         return not self._channels
-
-    # ------------------------------ Read-only accessors ------------------------------
 
     def __len__(self) -> int:
         """
@@ -261,8 +246,6 @@ class TimeSeries:
         tmaxs = [ch[0][-1] for ch in self._channels.values()]
         return float(min(tmins)), float(max(tmaxs))
 
-    # ------------------------------ Representation ------------------------------
-
     def __repr__(self) -> str:
         """
         Concise summary string for debugging/inspection.
@@ -277,8 +260,6 @@ class TimeSeries:
         mode = self.mode
         return f"TimeSeries(mode={mode!r}, channels={body})"
 
-    # ------------------------------ Utilities ------------------------------
-
     @staticmethod
     def _rel_tol(t: float) -> float:
         """
@@ -291,8 +272,6 @@ class TimeSeries:
             float: Tolerance = 1e-12 * max(1, |t|).
         """
         return 1e-12 * max(1.0, abs(float(t)))
-
-    # ------------------------------ New Utility ------------------------------
 
     def _check_normalized_bounds(self, name: str, values: np.ndarray) -> None:
         """
@@ -319,8 +298,6 @@ class TimeSeries:
                 vmin, vmax = float(values.min()), float(values.max())
                 raise ValueError(f"Normalized Delta must be in [-1,1]; got min={vmin}, max={vmax}")
         # Phi intentionally unbounded
-
-    # ------------------------------------------ Modifiers ------------------------------------------
 
     def add_point(self, name: str, t: float, value: float, *, tol: float | None = None) -> int:
         """
@@ -377,8 +354,6 @@ class TimeSeries:
             np.ascontiguousarray(new_v, dtype=np.float64),
         )
         return i
-
-    # ------------------------------------------ New Modifier ------------------------------------------
 
     def add_series(
         self,
@@ -510,8 +485,6 @@ class TimeSeries:
         self._channels[name] = (t_merged, v_merged)
         return t_merged.size
 
-    # ------------------------------------------ New Modifier ------------------------------------------
-
     def remove_point(self, name: str, t: float, *, tol: float | None = None) -> int:
         """
         Remove the sample closest to time 't' within tolerance.
@@ -548,8 +521,6 @@ class TimeSeries:
                 return i
         raise KeyError(f"remove_point: no sample at t≈{t} within tol={tol}")
 
-    # ------------------------------------------ New Modifier ------------------------------------------
-
     def remove_at(self, name: str, index: int) -> int:
         """
         Remove the sample at integer 'index' from channel 'name'.
@@ -572,8 +543,6 @@ class TimeSeries:
         )
         return index
 
-    # ------------------------------------------ New Modifier ------------------------------------------
-
     def clear_channel(self, name: str) -> None:
         """
         Remove an entire channel.
@@ -581,15 +550,11 @@ class TimeSeries:
         if name in self._channels:
             del self._channels[name]
 
-    # ------------------------------------------ New Modifier ------------------------------------------
-
     def clear(self) -> None:
         """
         Remove all channels (empty series).
         """
         self._channels.clear()
-
-    # ------------------------------------------ New Modifier ------------------------------------------
 
     def shift_time(self, dt: float) -> None:
         """
@@ -600,8 +565,6 @@ class TimeSeries:
         for name, (t, v) in self._channels.items():
             self._channels[name] = (np.ascontiguousarray(t + dt, dtype=np.float64), v)
 
-    # ------------------------------------------ New Modifier ------------------------------------------
-
     def normalize_start(self) -> None:
         """
         Shift all channels so that the global earliest sample occurs at t = 0.
@@ -611,8 +574,6 @@ class TimeSeries:
             return
         t0 = min(t[0] for (t, _) in self._channels.values())
         self.shift_time(-t0)
-
-    # ------------------------------------------ Queries ------------------------------------------
 
     def value_at(
         self,
@@ -664,8 +625,6 @@ class TimeSeries:
             out[name] = y
         return out
 
-    # ------------------------------------------ New Query ------------------------------------------
-
     def value_at_channel(self, name: str, tq: Iterable[float] | np.ndarray) -> np.ndarray:
         """
         Convenience: interpolate a single channel at times 'tq' with the same policy as 'value_at'.
@@ -675,8 +634,6 @@ class TimeSeries:
         return self.value_at(tq_arr, channels=[name]).get(
             name, np.zeros_like(tq_arr, dtype=np.float64)
         )
-
-    # ------------------------------------------ Visualization ------------------------------------------
 
     def plot(
         self,

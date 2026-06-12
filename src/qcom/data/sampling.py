@@ -1,214 +1,201 @@
-# qcom/data/sampling.py
-"""
-Sampling and dataset combination utilities for QCOM.
-
-Goal
-----
-Provide tools to resample quantum bitstring distributions and to merge
-datasets (counts or probabilities) in a principled way.
-
-Scope (current)
----------------
-• `sample_data`: Generate synthetic datasets by sampling from a probability distribution.
-• `combine_datasets`: Merge two datasets safely, handling both probability and count forms.
-
-Design notes
-------------
-• Built for compatibility with QCOM’s normalization utilities.
-• Progress reporting integrated with `ProgressManager` (optional).
-• Error-guarded: prevents mixing of probability and count datasets.
-
-Typical usage
--------------
->>> from qcom.data.sampling import sample_data, combine_datasets
->>> from qcom.data.ops import normalize_to_probabilities
->>> counts = {"00": 50, "01": 25, "10": 25}
->>> probs = normalize_to_probabilities(counts, total_count=100)
->>> sampled = sample_data(counts, total_count=100, sample_size=1000, show_progress=True)
->>> merged = combine_datasets(probs, probs, show_progress=True)
-
-Future extensions (non-breaking)
---------------------------------
-• Stratified sampling or weighted re-sampling.
-• Bootstrapping helpers for error estimation.
-• Dataset splitting (train/test partitioning).
-"""
+"""Sampling and dataset-combination utilities for QCOM."""
 
 import random
-from typing import Dict, Union
+from collections.abc import Mapping
+from typing import Union
 
 from qcom.core import CountsData, ProbabilityData
 
+from .._internal.deprecations import warn_deprecated_alias
 from .._internal import ProgressManager
 from ..data.ops import normalize_to_probabilities
 
+__all__ = [
+    "sample_counts",
+    "combine_bitstring_datasets",
+    "sample_data",
+    "combine_datasets",
+]
 
-# ========================================== Sampling Utilities ==========================================
 
-
-def sample_data(
-    data: Dict[str, int],
+def sample_counts(
+    counts: dict[str, int] | CountsData,
     total_count: int,
     sample_size: int,
     update_interval: int = 100,
     show_progress: bool = False,
-) -> Dict[str, int]:
+) -> dict[str, int]:
     """
-    Sample bit strings based on their probabilities.
+    Sample bitstrings from raw counts according to their probabilities.
 
-    Parameters
-    ----------
-    data : dict[str, int]
-        Dictionary mapping bit strings to raw counts.
-    total_count : int
-        Total number of counts (used for normalization).
-    sample_size : int
-        Number of samples to generate.
-    update_interval : int, optional
-        Frequency of progress updates (default = 100).
-    show_progress : bool, optional
-        Whether to display progress updates.
+    Args:
+        counts: Bitstring counts.
+        total_count: Total count used for normalization.
+        sample_size: Number of samples to generate.
+        update_interval: Frequency of progress updates when progress is enabled.
+        show_progress: Whether to display progress updates.
 
-    Returns
-    -------
-    dict[str, int]
-        Dictionary mapping sampled bit strings to their new counts.
+    Returns:
+        New bitstring counts drawn from the normalized distribution.
     """
-    # -------------------- Normalize input data --------------------
-    normalized_data = normalize_to_probabilities(data, total_count)
-    sequences = list(normalized_data.keys())
-    probabilities = list(normalized_data.values())
+    normalized_probabilities = normalize_to_probabilities(counts, total_count)
+    if isinstance(normalized_probabilities, ProbabilityData):
+        normalized_probabilities = normalized_probabilities.to_dict()
+    bitstrings = list(normalized_probabilities.keys())
+    probabilities = list(normalized_probabilities.values())
 
-    sampled_dict: Dict[str, int] = {}
+    sampled_counts: dict[str, int] = {}
 
-    # -------------------- Perform sampling with optional progress --------------------
     with (
-        ProgressManager.progress("Sampling data", total_steps=sample_size)
+        ProgressManager.progress("Sampling counts", total_steps=sample_size)
         if show_progress
         else ProgressManager.dummy_context()
     ):
-        sampled_sequences = random.choices(sequences, weights=probabilities, k=sample_size)
+        sampled_bitstrings = random.choices(bitstrings, weights=probabilities, k=sample_size)
 
-        for idx, sequence in enumerate(sampled_sequences):
-            sampled_dict[sequence] = sampled_dict.get(sequence, 0) + 1
-            if show_progress and idx % update_interval == 0:
-                ProgressManager.update_progress(idx + 1)
+        for index, bitstring in enumerate(sampled_bitstrings):
+            sampled_counts[bitstring] = sampled_counts.get(bitstring, 0) + 1
+            if show_progress and index % update_interval == 0:
+                ProgressManager.update_progress(index + 1)
 
         if show_progress:
-            ProgressManager.update_progress(sample_size)  # Ensure 100% completion
+            ProgressManager.update_progress(sample_size)
 
-    return sampled_dict
-
-
-# ========================================== Dataset Combination ==========================================
+    return sampled_counts
 
 
-def combine_datasets(
-    data1: Dict[str, Union[int, float]] | CountsData | ProbabilityData,
-    data2: Dict[str, Union[int, float]] | CountsData | ProbabilityData,
+def combine_bitstring_datasets(
+    left_dataset: Mapping[str, Union[int, float]] | CountsData | ProbabilityData,
+    right_dataset: Mapping[str, Union[int, float]] | CountsData | ProbabilityData,
     tol: float = 1e-6,
     update_interval: int = 100,
     show_progress: bool = False,
     return_data: bool = False,
-) -> Dict[str, Union[int, float]] | CountsData | ProbabilityData:
+) -> dict[str, Union[int, float]] | CountsData | ProbabilityData:
     """
-    Combine two datasets (counts or probabilities).
+    Combine two compatible bitstring datasets.
 
-    Rules
-    -----
-    • If both datasets are probabilities (sum ≈ 1), merge and renormalize.
-    • If both datasets are counts, merge counts directly.
-    • If one dataset is probabilities and the other is counts, raise an error.
-
-    Parameters
-    ----------
-    data1, data2 : dict[str, int or float]
-        Datasets to combine.
-    tol : float, optional
-        Tolerance for checking probability normalization (default = 1e-6).
-    update_interval : int, optional
-        Frequency of progress updates.
-    show_progress : bool, optional
-        Whether to display progress updates.
-
-    Returns
-    -------
-    dict[str, int or float]
-        The combined dataset. Normalized if both inputs were probabilities.
-
-    Raises
-    ------
-    ValueError
-        If one dataset is probabilities and the other is counts.
+    Rules:
+        - Two probability datasets are merged and renormalized.
+        - Two count datasets are merged directly.
+        - Mixed count/probability inputs raise an error.
     """
-    source = None
-    if isinstance(data1, CountsData) or isinstance(data2, CountsData):
-        if not isinstance(data1, CountsData) or not isinstance(data2, CountsData):
+    source: str | None = None
+    left_values: Mapping[str, Union[int, float]]
+    right_values: Mapping[str, Union[int, float]]
+    if isinstance(left_dataset, CountsData) or isinstance(right_dataset, CountsData):
+        if not isinstance(left_dataset, CountsData) or not isinstance(right_dataset, CountsData):
             raise ValueError(
                 "Cannot combine CountsData with probabilities or raw dictionaries. "
                 "Convert both inputs to the same explicit container type first."
             )
-        data_type = "counts"
-        left = data1.to_dict()
-        right = data2.to_dict()
-        source = data1.source or data2.source
-    elif isinstance(data1, ProbabilityData) or isinstance(data2, ProbabilityData):
-        if not isinstance(data1, ProbabilityData) or not isinstance(data2, ProbabilityData):
+        dataset_kind = "counts"
+        left_values = left_dataset.to_dict()
+        right_values = right_dataset.to_dict()
+        source = left_dataset.source or right_dataset.source
+    elif isinstance(left_dataset, ProbabilityData) or isinstance(right_dataset, ProbabilityData):
+        if not isinstance(left_dataset, ProbabilityData) or not isinstance(
+            right_dataset, ProbabilityData
+        ):
             raise ValueError(
                 "Cannot combine ProbabilityData with counts or raw dictionaries. "
                 "Convert both inputs to the same explicit container type first."
             )
-        data_type = "probabilities"
-        left = data1.to_dict()
-        right = data2.to_dict()
-        source = data1.source or data2.source
+        dataset_kind = "probabilities"
+        left_values = left_dataset.to_dict()
+        right_values = right_dataset.to_dict()
+        source = left_dataset.source or right_dataset.source
     else:
-        left = data1
-        right = data2
+        left_values = dict(left_dataset)
+        right_values = dict(right_dataset)
 
-        # -------------------- Detect type of raw dict datasets --------------------
-        total1 = sum(left.values())
-        total2 = sum(right.values())
+        left_total = sum(left_values.values())
+        right_total = sum(right_values.values())
 
-        is_prob1 = abs(total1 - 1.0) < tol
-        is_prob2 = abs(total2 - 1.0) < tol
+        left_is_probability = abs(left_total - 1.0) < tol
+        right_is_probability = abs(right_total - 1.0) < tol
 
-        if is_prob1 and is_prob2:
-            data_type = "probabilities"
-        elif (is_prob1 and not is_prob2) or (not is_prob1 and is_prob2):
+        if left_is_probability and right_is_probability:
+            dataset_kind = "probabilities"
+        elif (left_is_probability and not right_is_probability) or (
+            not left_is_probability and right_is_probability
+        ):
             raise ValueError(
                 "Cannot combine a dataset of probabilities with a dataset of counts. "
                 "Convert one to the other before combining."
             )
         else:
-            data_type = "counts"
+            dataset_kind = "counts"
 
-    # -------------------- Merge datasets with optional progress --------------------
-    combined: Dict[str, Union[int, float]] = {}
-    all_keys = set(left.keys()).union(right.keys())
-    total_keys = len(all_keys)
+    combined_values: dict[str, Union[int, float]] = {}
+    all_bitstrings = set(left_values.keys()).union(right_values.keys())
+    total_bitstrings = len(all_bitstrings)
 
     with (
-        ProgressManager.progress("Combining datasets", total_steps=total_keys)
+        ProgressManager.progress("Combining bitstring datasets", total_steps=total_bitstrings)
         if show_progress
         else ProgressManager.dummy_context()
     ):
-        for idx, key in enumerate(all_keys):
-            combined[key] = left.get(key, 0) + right.get(key, 0)
+        for index, bitstring in enumerate(all_bitstrings):
+            combined_values[bitstring] = left_values.get(bitstring, 0) + right_values.get(
+                bitstring, 0
+            )
 
-            if show_progress and idx % update_interval == 0:
-                ProgressManager.update_progress(idx + 1)
+            if show_progress and index % update_interval == 0:
+                ProgressManager.update_progress(index + 1)
 
         if show_progress:
-            ProgressManager.update_progress(total_keys)
+            ProgressManager.update_progress(total_bitstrings)
 
-    # -------------------- Renormalize if probability data --------------------
-    if data_type == "probabilities":
-        combined_total = sum(combined.values())
-        combined = {key: value / combined_total for key, value in combined.items()}
+    if dataset_kind == "probabilities":
+        combined_total = sum(combined_values.values())
+        combined_values = {
+            bitstring: value / combined_total for bitstring, value in combined_values.items()
+        }
         if return_data:
-            return ProbabilityData(combined, source=source)
+            return ProbabilityData(combined_values, source=source)
     elif return_data:
-        return CountsData({key: int(value) for key, value in combined.items()}, source=source)
+        return CountsData(
+            {bitstring: int(value) for bitstring, value in combined_values.items()},
+            source=source,
+        )
 
-    return combined
+    return combined_values
+
+
+def sample_data(
+    data: dict[str, int] | CountsData,
+    total_count: int,
+    sample_size: int,
+    update_interval: int = 100,
+    show_progress: bool = False,
+) -> dict[str, int]:
+    """Deprecated compatibility alias for `sample_counts`."""
+    warn_deprecated_alias("sample_data", "sample_counts")
+    return sample_counts(
+        data,
+        total_count=total_count,
+        sample_size=sample_size,
+        update_interval=update_interval,
+        show_progress=show_progress,
+    )
+
+
+def combine_datasets(
+    data1: Mapping[str, Union[int, float]] | CountsData | ProbabilityData,
+    data2: Mapping[str, Union[int, float]] | CountsData | ProbabilityData,
+    tol: float = 1e-6,
+    update_interval: int = 100,
+    show_progress: bool = False,
+    return_data: bool = False,
+) -> dict[str, Union[int, float]] | CountsData | ProbabilityData:
+    """Deprecated compatibility alias for `combine_bitstring_datasets`."""
+    warn_deprecated_alias("combine_datasets", "combine_bitstring_datasets")
+    return combine_bitstring_datasets(
+        data1,
+        data2,
+        tol=tol,
+        update_interval=update_interval,
+        show_progress=show_progress,
+        return_data=return_data,
+    )

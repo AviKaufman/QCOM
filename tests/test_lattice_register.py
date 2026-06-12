@@ -14,9 +14,6 @@ from qcom.lattice_register import LatticeRegister
 from qcom._internal import fonts as font_helpers
 
 
-# ----------------------------- Fixtures -----------------------------
-
-
 @pytest.fixture
 def empty_reg():
     """An empty LatticeRegister with shape (0, 3)."""
@@ -45,9 +42,6 @@ def three_d_reg():
             (0.0, 2.0e-6, 2.0e-6),
         ]
     )
-
-
-# ----------------------------- __init__ -----------------------------
 
 
 def test_init_empty_shape(empty_reg):
@@ -162,16 +156,10 @@ def test_init_accepts_iterables():
     assert len(reg) == 2
 
 
-# ----------------------------- __len__ -----------------------------
-
-
 def test_len_tracks_number_of_sites(empty_reg):
     empty_reg.add((0.0, 0.0, 0.0))
     empty_reg.add((1.0e-6, 0.0, 0.0))
     assert len(empty_reg) == 2
-
-
-# ----------------------------- positions property -----------------------------
 
 
 def test_positions_view_is_read_only(simple_reg):
@@ -179,9 +167,6 @@ def test_positions_view_is_read_only(simple_reg):
     assert view.flags["WRITEABLE"] is False
     with pytest.raises(ValueError):
         view[0, 0] = 123.0
-
-
-# ----------------------------- add() -----------------------------
 
 
 def test_add_appends_insertion_order(empty_reg):
@@ -210,9 +195,6 @@ def test_add_rejects_non_finite_values(empty_reg):
         empty_reg.add((np.nan, 0.0, 0.0))
 
 
-# ----------------------------- remove() -----------------------------
-
-
 def test_remove_by_index(simple_reg):
     removed = simple_reg.remove(1)
     assert removed == 1
@@ -224,9 +206,6 @@ def test_remove_by_index(simple_reg):
 def test_remove_invalid_index(simple_reg):
     with pytest.raises(IndexError):
         simple_reg.remove(10)
-
-
-# ----------------------------- position() -----------------------------
 
 
 def test_position_returns_coordinates(simple_reg):
@@ -241,16 +220,10 @@ def test_position_invalid_index(simple_reg):
         simple_reg.position(99)
 
 
-# ----------------------------- as_array() -----------------------------
-
-
 def test_as_array_returns_independent_copy(simple_reg):
     arr = simple_reg.as_array()
     arr[0, 0] = 123.0
     assert simple_reg.positions[0, 0] == 0.0
-
-
-# ----------------------------- index_map() -----------------------------
 
 
 def test_index_map_formats_expected_rows(simple_reg):
@@ -267,16 +240,10 @@ def test_index_map_respects_max_rows(simple_reg):
     assert "... (" in map_str
 
 
-# ----------------------------- __repr__ -----------------------------
-
-
 def test_repr_contains_summary(simple_reg):
     rep = repr(simple_reg)
     assert "LatticeRegister" in rep
     assert "N=3" in rep
-
-
-# ----------------------------- distance() -----------------------------
 
 
 def test_distance_between_sites(simple_reg):
@@ -293,9 +260,6 @@ def test_distance_invalid_indices(simple_reg):
         simple_reg.distance(0, 99)
 
 
-# ----------------------------- distances() -----------------------------
-
-
 def test_distances_matrix_is_symmetric(simple_reg):
     D = simple_reg.distances()
     assert D.shape == (3, 3)
@@ -307,17 +271,11 @@ def test_distances_diagonal_is_zero(simple_reg):
     np.testing.assert_allclose(np.diag(D), np.zeros(3))
 
 
-# ----------------------------- clear() -----------------------------
-
-
 def test_clear_empties_register(simple_reg):
     result = simple_reg.clear()
     assert result is None
     assert len(simple_reg) == 0
     assert simple_reg.positions.shape == (0, 3)
-
-
-# ----------------------------- plot() -----------------------------
 
 
 def test_plot_returns_2d_axes(simple_reg):

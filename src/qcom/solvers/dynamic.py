@@ -1,4 +1,3 @@
-# qcom/solvers/dynamic.py
 """
 Dynamic solver — generic time evolution under time-dependent Hamiltonians.
 
@@ -26,12 +25,11 @@ Notes
 • Progress display integrates with `ProgressManager` if available.
 """
 
-# ------------------------------------------ Imports ------------------------------------------
-
 from __future__ import annotations
 
+from typing import Any, Iterable, Mapping, Protocol, runtime_checkable
+
 import numpy as np
-from typing import Iterable, Mapping, Protocol, runtime_checkable
 
 from qcom.core import EvolutionResult
 
@@ -44,7 +42,7 @@ from scipy.sparse.linalg import expm_multiply
 
 # Progress manager is optional; if not present we no-op
 try:
-    from qcom._internal.progress import ProgressManager
+    from qcom._internal.progress import ProgressManager as _ProgressManager
 except Exception:  # pragma: no cover
 
     class _DummyPM:
@@ -64,10 +62,9 @@ except Exception:  # pragma: no cover
         def update_progress(*args, **kwargs):
             pass
 
-    ProgressManager = _DummyPM()  # type: ignore
-
-
-# ------------------------------------------ Adapter Protocol ------------------------------------------
+    ProgressManager: Any = _DummyPM()
+else:
+    ProgressManager = _ProgressManager
 
 
 @runtime_checkable
@@ -90,12 +87,9 @@ class ControlAdapter(Protocol):
 
     @property
     def required_channels(self) -> tuple[str, ...]: ...
-    def hamiltonian_at(self, t: float, controls: Mapping[str, float]): ...
+    def hamiltonian_at(self, t: float, controls: Mapping[str, float]) -> Any: ...
     @property
     def dimension(self) -> int: ...
-
-
-# ------------------------------------------ Utilities ------------------------------------------
 
 
 def _is_sparse(A) -> bool:
@@ -107,9 +101,6 @@ def _normalize(psi):
     if nrm == 0.0:
         return psi
     return psi / nrm
-
-
-# ------------------------------------------ Public API ------------------------------------------
 
 
 def evolve_state(
@@ -164,12 +155,11 @@ def evolve_state(
           - "times": np.ndarray of shape (M,)
           - "states": list[np.ndarray] (length M)
     """
-    # ----- Validate initial state ------------------------------------------------
     psi = np.asarray(psi0, dtype=np.complex128).reshape(-1)
     dim = psi.shape[0]
     if hasattr(adapter, "dimension"):
         try:
-            adim = int(adapter.dimension)  # type: ignore[attr-defined]
+            adim = int(getattr(adapter, "dimension", 0))
             if adim and adim != dim:
                 raise ValueError(
                     f"Initial state dimension {dim} does not match adapter.dimension={adim}."
@@ -177,7 +167,6 @@ def evolve_state(
         except Exception:
             pass
 
-    # ----- Build time grid -------------------------------------------------------
     if (times is None) == (n_steps is None):
         raise ValueError("Provide exactly one of 'n_steps' or 'times'.")
 
@@ -188,19 +177,18 @@ def evolve_state(
     else:
         # derive from the TimeSeries union domain
         t0, t1 = time_series.domain()
-        if n_steps < 1:
+        if n_steps is None or n_steps < 1:
             raise ValueError("'n_steps' must be >= 1.")
         t_grid = np.linspace(float(t0), float(t1), int(n_steps) + 1, dtype=np.float64)
 
-    # ----- Determine which channels to sample -----------------------------------
     req = tuple(getattr(adapter, "required_channels", ()))
     if not req:
         # Fall back to sampling everything present
-        req = tuple(time_series.channel_names)  # type: ignore[attr-defined]
+        req = tuple(time_series.channel_names)
 
     # Prepare recording
-    traj_times = None
-    traj_states = None
+    traj_times: np.ndarray | None = None
+    traj_states: list[np.ndarray] | None = None
     if record:
         traj_times = t_grid.copy()
         traj_states = [psi.copy()]
@@ -212,7 +200,6 @@ def evolve_state(
         if show_progress
         else ProgressManager.dummy_context()
     ):
-        # ----- Main loop ---------------------------------------------------------
         for s in range(total_steps):
             t_a, t_b = float(t_grid[s]), float(t_grid[s + 1])
             dt = t_b - t_a
@@ -224,7 +211,7 @@ def evolve_state(
             }  # dict[str, np.ndarray] -> scalar
 
             # Apply exp(-i H dt) to psi without materializing the full unitary.
-            H = adapter.hamiltonian_at(t_mid, controls)  # type: ignore[attr-defined]
+            H = adapter.hamiltonian_at(t_mid, controls)
             # Materialize as sparse CSR if adapter didn't already
             if _is_sparse(H):
                 A = H
@@ -236,14 +223,14 @@ def evolve_state(
             if normalize_each_step:
                 psi = _normalize(psi)
 
-            if record:
+            if record and traj_states is not None:
                 traj_states.append(psi.copy())
 
             if show_progress:
                 ProgressManager.update_progress(min(s + 1, total_steps))
 
-    out = {}
-    if record:
+    out: dict[str, object] = {}
+    if record and traj_times is not None and traj_states is not None:
         out["times"] = traj_times
         out["states"] = traj_states
     if return_result:

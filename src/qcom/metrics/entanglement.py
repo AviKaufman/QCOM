@@ -1,4 +1,3 @@
-# qcom/metrics/entanglement.py
 """
 qcom.metrics.entanglement
 =========================
@@ -32,9 +31,6 @@ from ..solvers.static import find_eigenstate, as_linear_operator
 from .states import create_density_matrix, compute_reduced_density_matrix
 
 
-# -------------------- Von Neumann Entropy from RDM --------------------
-
-
 def von_neumann_entropy_from_rdm(rdm: np.ndarray, *, base: float = 2) -> float:
     """
     Compute the Von Neumann Entanglement Entropy (VNEE) from a reduced density matrix.
@@ -56,9 +52,6 @@ def von_neumann_entropy_from_rdm(rdm: np.ndarray, *, base: float = 2) -> float:
     if base == np.e:
         return float(entropy_nats)
     return float(entropy_nats / np.log(base))
-
-
-# -------------------- Von Neumann Entropy from Hamiltonian --------------------
 
 
 def von_neumann_entropy_from_hamiltonian(
@@ -116,34 +109,27 @@ def von_neumann_entropy_from_hamiltonian(
         if show_progress
         else ProgressManager.dummy_context()
     ):
-        # --- 1) Eigen-decomposition (choose eigenstate) ---
         _, psi = find_eigenstate(hamiltonian, state_index=state_index, show_progress=show_progress)
         step += 1
         if show_progress:
             ProgressManager.update_progress(min(step, total_steps))
 
-        # --- 2) Full density matrix ρ = |ψ⟩⟨ψ| ---
         rho = create_density_matrix(np.asarray(psi).reshape(-1), show_progress=False)
         step += 1
         if show_progress:
             ProgressManager.update_progress(min(step, total_steps))
 
-        # --- 3) Partial trace to reduced density matrix on selected subsystem ---
         # configuration convention: 1 = keep, 0 = trace out
         rdm = compute_reduced_density_matrix(rho, configuration, show_progress=False)
         step += n_qubits  # account for worst-case tracing loop inside helper
         if show_progress:
             ProgressManager.update_progress(min(step, total_steps))
 
-        # --- 4) Entropy on RDM ---
         S = von_neumann_entropy_from_rdm(rdm, base=base)
         if show_progress:
             ProgressManager.update_progress(total_steps)
 
     return S
-
-
-# -------------------- Von Neumann Entropy directly from state --------------------
 
 
 def von_neumann_entropy_from_state(
@@ -187,19 +173,16 @@ def von_neumann_entropy_from_state(
         if show_progress
         else ProgressManager.dummy_context()
     ):
-        # --- 1) ρ = |ψ⟩⟨ψ| ---
         rho = create_density_matrix(psi, show_progress=False)
         step += 1
         if show_progress:
             ProgressManager.update_progress(min(step, total_steps))
 
-        # --- 2) Partial trace to RDM ---
         rdm = compute_reduced_density_matrix(rho, configuration, show_progress=False)
         step += n_qubits
         if show_progress:
             ProgressManager.update_progress(min(step, total_steps))
 
-        # --- 3) Entropy on RDM ---
         S = von_neumann_entropy_from_rdm(rdm, base=base)
         if show_progress:
             ProgressManager.update_progress(total_steps)

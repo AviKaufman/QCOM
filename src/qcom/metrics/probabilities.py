@@ -1,18 +1,5 @@
-# qcom/metrics/probabilities.py
 """
-qcom.metrics.probabilities
-==========================
-
 Probability-distribution utilities and derived summaries.
-
-Purpose
--------
-Provide helpers for working with classical probability dictionaries coming
-from measurement outcomes (e.g., {bitstring: p}), including:
-- Scalar queries like the cumulative probability up to a threshold.
-- Construction of cumulative distribution “steps” on linear or log-spaced grids.
-- The N(p) diagnostic (mass within a multiplicative neighborhood around p).
-- Convenience routine to obtain |ψ|^2 of an eigenstate in the computational basis.
 
 Notes
 -----
@@ -37,35 +24,45 @@ Log Bases
 from __future__ import annotations
 
 import numpy as np
+
+from .._internal.deprecations import warn_deprecated_alias
 from .._internal.progress import ProgressManager
 from ..solvers.static import find_eigenstate, as_linear_operator
 
+__all__ = [
+    "compute_cumulative_probability_at_value",
+    "compute_cumulative_distribution",
+    "compute_n_of_p_curve",
+    "compute_n_of_p",
+    "get_eigenstate_probabilities",
+    "statevector_to_probabilities",
+    "cumulative_probability_at_value",
+    "cumulative_distribution",
+    "compute_N_of_p_all",
+    "compute_N_of_p",
+]
 
-# -------------------- Cumulative probability at a threshold --------------------
 
-
-def cumulative_probability_at_value(binary_dict: dict[str, float], value: float) -> float:
+def compute_cumulative_probability_at_value(
+    bitstring_probabilities: dict[str, float],
+    probability_threshold: float,
+) -> float:
     """
-    Sum probabilities in `binary_dict` that are ≤ `value`.
+    Sum probabilities that are less than or equal to a threshold.
 
     Args:
-        binary_dict: Mapping of state bit-strings to probabilities.
-        value: Threshold probability.
+        bitstring_probabilities: Mapping of state bitstrings to probabilities.
+        probability_threshold: Threshold probability.
 
     Returns:
-        float: Sum of all p such that p ≤ value.
+        Sum of all probabilities p such that p <= `probability_threshold`.
     """
-    probabilities = np.array(list(binary_dict.values()), dtype=float)
-    return float(np.sum(probabilities[probabilities <= value]))
+    probabilities = np.array(list(bitstring_probabilities.values()), dtype=float)
+    return float(np.sum(probabilities[probabilities <= probability_threshold]))
 
 
-# -------------------- Cumulative distribution (linear or log grid) --------------------
-
-# -------------------- Cumulative distribution (unique or user-supplied grid) --------------------
-
-
-def cumulative_distribution(
-    binary_dict: dict[str, float],
+def compute_cumulative_distribution(
+    bitstring_probabilities: dict[str, float],
     grid: np.ndarray | list[float] | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
@@ -85,11 +82,12 @@ def cumulative_distribution(
         normalization.)
 
     Args:
-        binary_dict: Keys are bit-strings; values must sum to 1.0 (within fp tol).
+        bitstring_probabilities: Keys are bitstrings; values must sum to 1.0
+            within floating-point tolerance.
         grid: Array-like of probability thresholds in (0, 1]; may be linear or
               log-spaced. If you want a log grid, pass something like:
                   # log10 grid
-                  np.logspace(np.log10(p_min), np.log10(1.0), num=N, base=10)
+                  np.logspace(np.log10(p_min), np.log10(1.0), num=n, base=10)
                   # natural-log grid
                   np.logspace(np.log(p_min), np.log(1.0), num=N, base=np.e)
                   # base-2 grid
@@ -105,12 +103,12 @@ def cumulative_distribution(
       guarantees y[-1] == 1.0 even if round-off leaves the final sum at zero.
     - If `grid` contains unsorted values, they are internally sorted ascending.
     """
-    if not binary_dict:
-        raise ValueError("cumulative_distribution: input dict is empty")
+    if not bitstring_probabilities:
+        raise ValueError("compute_cumulative_distribution: input dict is empty")
 
-    probs = np.array(list(binary_dict.values()), dtype=float)
+    probs = np.array(list(bitstring_probabilities.values()), dtype=float)
     if not np.isclose(np.sum(probs), 1.0):
-        raise ValueError("cumulative_distribution: input values must sum to 1.0")
+        raise ValueError("compute_cumulative_distribution: input values must sum to 1.0")
 
     if grid is None:
         sorted_p = np.sort(probs)
@@ -125,9 +123,9 @@ def cumulative_distribution(
     # Use user-supplied probability grid
     x_axis = np.asarray(grid, dtype=float).reshape(-1)
     if x_axis.size < 1:
-        raise ValueError("cumulative_distribution: provided grid is empty")
+        raise ValueError("compute_cumulative_distribution: provided grid is empty")
     if np.any(x_axis <= 0) or np.any(x_axis > 1.0):
-        raise ValueError("cumulative_distribution: grid values must lie in (0, 1]")
+        raise ValueError("compute_cumulative_distribution: grid values must lie in (0, 1]")
 
     # Ensure ascending thresholds
     x_axis = np.sort(x_axis)
@@ -152,10 +150,7 @@ def cumulative_distribution(
     return x_axis, y_axis
 
 
-# -------------------- N(p) diagnostics (bulk) --------------------
-
-
-def compute_N_of_p_all(
+def compute_n_of_p_curve(
     probabilities: dict[str, float] | np.ndarray | list[float],
     p_delta: float = 0.1,
     show_progress: bool = False,
@@ -163,7 +158,7 @@ def compute_N_of_p_all(
     log_base: float = 10.0,
 ) -> tuple[np.ndarray, list[float]]:
     """
-    Efficiently compute N(p) for each unique nonzero probability.
+    Compute N(p) for each unique nonzero probability.
 
     Definition (heuristic)
     ----------------------
@@ -180,13 +175,13 @@ def compute_N_of_p_all(
                   Defaults to 10.0 to match previous (log10) behavior.
 
     Returns:
-        (unique_probs, N_values)
+        (unique_probabilities, n_values)
     """
     if isinstance(probabilities, dict):
         probabilities = list(probabilities.values())
 
     if log_base <= 0.0 or log_base == 1.0:
-        raise ValueError("compute_N_of_p_all: 'log_base' must be > 0 and != 1.0")
+        raise ValueError("compute_n_of_p_curve: 'log_base' must be > 0 and != 1.0")
 
     probs = np.array(probabilities, dtype=float)
     probs = probs[probs > 0.0]
@@ -197,22 +192,21 @@ def compute_N_of_p_all(
     cumulative_probs = np.cumsum(sorted_probs)
     unique_probs = np.unique(sorted_probs)
 
-    def compute_single_N(p: float) -> float:
-        # window edges in the chosen base
-        b = float(log_base)
-        scale = b ** (p_delta / 2.0)
-        lower = p / scale
-        upper = p * scale
+    def _compute_single_n(probability: float) -> float:
+        log_base_float = float(log_base)
+        scale = log_base_float ** (p_delta / 2.0)
+        lower = probability / scale
+        upper = probability * scale
 
         lower_idx = int(np.searchsorted(sorted_probs, lower, side="left"))
         upper_idx = int(np.searchsorted(sorted_probs, upper, side="right"))
         sigma_lower = cumulative_probs[lower_idx - 1] if lower_idx > 0 else 0.0
         sigma_upper = cumulative_probs[upper_idx - 1] if upper_idx > 0 else 0.0
 
-        width = (upper - lower) * p
+        width = (upper - lower) * probability
         return float((sigma_upper - sigma_lower) / (width if width > 0 else np.finfo(float).tiny))
 
-    N_values: list[float] = []
+    n_values: list[float] = []
     total = len(unique_probs)
 
     with (
@@ -220,19 +214,16 @@ def compute_N_of_p_all(
         if show_progress
         else ProgressManager.dummy_context()
     ):
-        for i, p in enumerate(unique_probs):
-            N_values.append(compute_single_N(float(p)))
+        for index, probability in enumerate(unique_probs):
+            n_values.append(_compute_single_n(float(probability)))
             if show_progress:
-                ProgressManager.update_progress(i + 1)
+                ProgressManager.update_progress(index + 1)
 
-    return unique_probs, N_values
-
-
-# -------------------- N(p) diagnostic (single p) --------------------
+    return unique_probs, n_values
 
 
-def compute_N_of_p(
-    p: float,
+def compute_n_of_p(
+    probability: float,
     sorted_probs: np.ndarray,
     cumulative_probs: np.ndarray,
     p_delta: float = 0.1,
@@ -243,7 +234,7 @@ def compute_N_of_p(
     Compute N(p) using precomputed sorted/cumulative arrays.
 
     Args:
-        p: Probability at which to evaluate N(p).
+        probability: Probability at which to evaluate N(p).
         sorted_probs: Sorted array of nonzero probabilities.
         cumulative_probs: Cumulative sum of `sorted_probs`.
         p_delta: Width δ in log space (default log_base = 10 → log10 units).
@@ -253,15 +244,15 @@ def compute_N_of_p(
     Returns:
         float: N(p) value.
     """
-    if p <= 0.0:
+    if probability <= 0.0:
         return 0.0
     if log_base <= 0.0 or log_base == 1.0:
-        raise ValueError("compute_N_of_p: 'log_base' must be > 0 and != 1.0")
+        raise ValueError("compute_n_of_p: 'log_base' must be > 0 and != 1.0")
 
-    b = float(log_base)
-    scale = b ** (p_delta / 2.0)
-    lower = p / scale
-    upper = p * scale
+    log_base_float = float(log_base)
+    scale = log_base_float ** (p_delta / 2.0)
+    lower = probability / scale
+    upper = probability * scale
 
     lower_idx = int(np.searchsorted(sorted_probs, lower, side="left"))
     upper_idx = int(np.searchsorted(sorted_probs, upper, side="right"))
@@ -269,12 +260,63 @@ def compute_N_of_p(
     sigma_lower = cumulative_probs[lower_idx - 1] if lower_idx > 0 else 0.0
     sigma_upper = cumulative_probs[upper_idx - 1] if upper_idx > 0 else 0.0
 
-    width = (upper - lower) * p
+    width = (upper - lower) * probability
     denom = width if width > 0 else np.finfo(float).tiny
     return float((sigma_upper - sigma_lower) / denom)
 
 
-# -------------------- Eigenstate probabilities (computational basis) --------------------
+def cumulative_probability_at_value(binary_dict: dict[str, float], value: float) -> float:
+    """Deprecated compatibility alias for `compute_cumulative_probability_at_value`."""
+    warn_deprecated_alias(
+        "cumulative_probability_at_value",
+        "compute_cumulative_probability_at_value",
+    )
+    return compute_cumulative_probability_at_value(binary_dict, value)
+
+
+def cumulative_distribution(
+    binary_dict: dict[str, float],
+    grid: np.ndarray | list[float] | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Deprecated compatibility alias for `compute_cumulative_distribution`."""
+    warn_deprecated_alias("cumulative_distribution", "compute_cumulative_distribution")
+    return compute_cumulative_distribution(binary_dict, grid=grid)
+
+
+def compute_N_of_p_all(
+    probabilities: dict[str, float] | np.ndarray | list[float],
+    p_delta: float = 0.1,
+    show_progress: bool = False,
+    *,
+    log_base: float = 10.0,
+) -> tuple[np.ndarray, list[float]]:
+    """Deprecated compatibility alias for `compute_n_of_p_curve`."""
+    warn_deprecated_alias("compute_N_of_p_all", "compute_n_of_p_curve")
+    return compute_n_of_p_curve(
+        probabilities,
+        p_delta=p_delta,
+        show_progress=show_progress,
+        log_base=log_base,
+    )
+
+
+def compute_N_of_p(
+    p: float,
+    sorted_probs: np.ndarray,
+    cumulative_probs: np.ndarray,
+    p_delta: float = 0.1,
+    *,
+    log_base: float = 10.0,
+) -> float:
+    """Deprecated compatibility alias for `compute_n_of_p`."""
+    warn_deprecated_alias("compute_N_of_p", "compute_n_of_p")
+    return compute_n_of_p(
+        p,
+        sorted_probs,
+        cumulative_probs,
+        p_delta=p_delta,
+        log_base=log_base,
+    )
 
 
 def get_eigenstate_probabilities(
@@ -306,7 +348,6 @@ def get_eigenstate_probabilities(
     Returns:
         dict[str, float]: Mapping "bitstring" -> probability.
     """
-    # --- Determine Hilbert dimension robustly (no densification) ---
     dim = None
     try:
         # Fast path for BaseHamiltonian
@@ -335,7 +376,6 @@ def get_eigenstate_probabilities(
         if show_progress
         else ProgressManager.dummy_context()
     ):
-        # --- 1) Eigenstate (do NOT densify; find_eigenstate handles all backends) ---
         _, chosen_state = find_eigenstate(
             hamiltonian,
             state_index=state_index,
@@ -345,7 +385,6 @@ def get_eigenstate_probabilities(
         if show_progress:
             ProgressManager.update_progress(min(step, total_steps))
 
-        # --- 2) Probabilities |ψ|^2 and normalize ---
         psi = np.asarray(chosen_state).reshape(-1)
         probabilities = np.abs(psi) ** 2
         s = float(probabilities.sum())
@@ -355,9 +394,8 @@ def get_eigenstate_probabilities(
         if show_progress:
             ProgressManager.update_progress(min(step, total_steps))
 
-        # --- 3) Build mapping with selectable endianness ---
         fmt = "{:0" + str(n_qubits) + "b}"
-        state_prob_dict: dict[str, float] = {}
+        state_probabilities: dict[str, float] = {}
         thr = float(drop_tol)
         for i in range(hilbert_dim):
             p = float(probabilities[i])
@@ -365,20 +403,16 @@ def get_eigenstate_probabilities(
                 bitstring = fmt.format(i)
                 if not msb_site0:
                     bitstring = bitstring[::-1]
-                state_prob_dict[bitstring] = p
+                state_probabilities[bitstring] = p
             step += 1
             if show_progress and (step % 1024 == 0 or i == hilbert_dim - 1):
                 # update periodically to avoid excessive overhead
                 ProgressManager.update_progress(min(step, total_steps))
 
-        # --- 4) Final update to hit total_steps exactly ---
         if show_progress and step < total_steps:
             ProgressManager.update_progress(total_steps)
 
-    return state_prob_dict
-
-
-# -------------------- Get State Probabilities --------------------
+    return state_probabilities
 
 
 def statevector_to_probabilities(

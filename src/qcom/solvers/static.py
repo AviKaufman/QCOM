@@ -1,4 +1,3 @@
-# qcom/solvers/static.py
 """
 Static (time-independent) eigen solvers for QCOM.
 
@@ -26,20 +25,20 @@ Notes
 """
 
 from __future__ import annotations
+
 import time
+from typing import Any, Optional, Tuple
+
 import numpy as np
-from typing import Optional, Tuple
 
 from qcom.core import SpectrumResult
 
 from .._internal.progress import ProgressManager
 
-# -------------------- Optional SciPy imports (lazy, with clear error) --------------------
-
 
 def _require_scipy_linalg(where: str):
     try:
-        import scipy.sparse.linalg as sp_linalg  # type: ignore
+        import scipy.sparse.linalg as sp_linalg
 
         return sp_linalg
     except Exception as e:  # pragma: no cover
@@ -48,16 +47,13 @@ def _require_scipy_linalg(where: str):
 
 def _maybe_is_sparse_matrix(H) -> bool:
     try:
-        import scipy.sparse as sp  # type: ignore
+        import scipy.sparse as sp
     except Exception:
         return False
     return sp.issparse(H)
 
 
-# -------------------- Normalization: get LinearOperator from various inputs --------------------
-
-
-def as_linear_operator(H) -> Tuple["object", Optional[bool], int]:
+def as_linear_operator(H) -> Tuple[Any, Optional[bool], int]:
     """
     Normalize a Hamiltonian-like input into a SciPy LinearOperator.
 
@@ -133,9 +129,6 @@ def as_linear_operator(H) -> Tuple["object", Optional[bool], int]:
         "Unsupported Hamiltonian type. Provide a NumPy array, SciPy sparse matrix, "
         "LinearOperator, or a qcom BaseHamiltonian."
     )
-
-
-# -------------------- Core thin-spectrum solver --------------------
 
 
 def eigensolve(
@@ -218,9 +211,6 @@ def eigensolve(
     return evals
 
 
-# -------------------- Convenience: ground state --------------------
-
-
 def ground_state(
     H,
     *,
@@ -259,9 +249,6 @@ def ground_state(
     return float(np.real(evals[0]))
 
 
-# -------------------- Back-compat helper: eigenstate by index --------------------
-
-
 def find_eigenstate(hamiltonian, state_index: int = 0, show_progress: bool = False):
     """
     Return (eigenvalue, eigenvector) for the eigenstate at `state_index`
@@ -284,9 +271,6 @@ def find_eigenstate(hamiltonian, state_index: int = 0, show_progress: bool = Fal
         show_progress=show_progress,
     )
     return float(np.real(evals[state_index])), evecs[:, state_index]
-
-
-# -------------------- Full spectrum for small problems --------------------
 
 
 def full_dense_spectrum(

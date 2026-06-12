@@ -1,7 +1,6 @@
-# qcom/controls/adapters/base.py
 from __future__ import annotations
 
-from typing import Protocol, Mapping, runtime_checkable, Any
+from typing import Any, Mapping, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -34,12 +33,10 @@ class ControlAdapter(Protocol):
         Cosmetic hints used by plotting presets (if you choose to provide them).
     """
 
-    # ------------------- REQUIRED -------------------
     @property
     def required_channels(self) -> tuple[str, ...]: ...
     def hamiltonian_at(self, t: float, controls: Mapping[str, float]) -> Any: ...
 
-    # ------------------- OPTIONAL -------------------
     @property
     def dimension(self) -> int: ...  # return 0 if unknown
 
@@ -61,13 +58,13 @@ def get_required_channels(adapter: object) -> tuple[str, ...]:
     if hasattr(adapter, "required_channels"):
         rc = getattr(adapter, "required_channels")
         try:
-            return tuple(rc)  # type: ignore[arg-type]
+            return tuple(rc)
         except Exception:
             return ()
     if hasattr(adapter, "expected_channels"):
         ec = getattr(adapter, "expected_channels")
         try:
-            return tuple(ec)  # type: ignore[arg-type]
+            return tuple(ec)
         except Exception:
             return ()
     return ()

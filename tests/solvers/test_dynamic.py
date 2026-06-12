@@ -1,13 +1,9 @@
-# tests/test_solvers_dynamic.py
 import numpy as np
 import pytest
 
 pytest.importorskip("scipy")  # dynamic uses SciPy expm backends
 
 from qcom.solvers.dynamic import evolve_state, ControlAdapter
-
-
-# -------------------- Tiny mocks --------------------
 
 
 class _MockTimeSeries:
@@ -90,9 +86,6 @@ class _XDriveAdapterSparse(ControlAdapter):
         return (0.5 * Omega) * self._sx  # CSR
 
 
-# -------------------- Analytic helper --------------------
-
-
 def analytic_rabi_xdrive(psi0, Omega, T):
     """
     Exact solution for H = (Omega/2) * sigma_x, psi0 in computational basis.
@@ -104,9 +97,6 @@ def analytic_rabi_xdrive(psi0, Omega, T):
     sx = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=np.complex128)
     U = c * identity - 1j * s * sx
     return U @ psi0
-
-
-# -------------------- Tests --------------------
 
 
 def test_dense_times_explicit_matches_analytic():

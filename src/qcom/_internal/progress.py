@@ -1,4 +1,3 @@
-# qcom/_internal/progress.py
 """
 Progress utilities for long-running tasks in QCOM.
 
@@ -37,22 +36,12 @@ API
     Update the current step (clamped to [0, total_steps]).
 - ProgressManager.dummy_context()
     No-op context manager for conditional progress paths.
-
-Future extensions (non-breaking)
---------------------------------
-• Optional log-level routing (stdout vs. logging).
-• Pluggable renderers (ASCII bars, rich, Jupyter widgets).
-• Rate smoothing and adaptive ETA.
 """
 
-# ------------------------------------------ Imports ------------------------------------------
-
-import time
 import sys
+import time
 from contextlib import contextmanager
-
-
-# ========================================== Progress Manager ==========================================
+from typing import Any
 
 
 class ProgressManager:
@@ -62,11 +51,8 @@ class ProgressManager:
     Nested scopes are supported; only the *outermost* active scope emits output.
     """
 
-    # ------------------------------------------ Internal State ------------------------------------------
     # Stack of active scopes; each item is a dict(task, total, start, last_msg_len)
-    _stack = []
-
-    # ------------------------------------------ Public API: Context Scope ------------------------------------------
+    _stack: list[dict[str, Any]] = []
 
     @staticmethod
     @contextmanager
@@ -117,8 +103,6 @@ class ProgressManager:
                 )
                 sys.stdout.flush()
 
-    # ------------------------------------------ Public API: Update ------------------------------------------
-
     @staticmethod
     def update_progress(current_step: int):
         """
@@ -161,8 +145,6 @@ class ProgressManager:
         sys.stdout.write("\r" + " " * 80 + "\r")
         sys.stdout.write(msg)
         sys.stdout.flush()
-
-    # ------------------------------------------ Public API: No-op Context ------------------------------------------
 
     @staticmethod
     @contextmanager

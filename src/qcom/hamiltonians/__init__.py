@@ -41,14 +41,12 @@ __all__ = [
     "build_rydberg",
 ]
 
-# -------------------- Type-only imports (no runtime import cost) --------------------
 if TYPE_CHECKING:
     from .base import BaseHamiltonian
     from .ising import IsingHamiltonian
     from .rydberg import RydbergHamiltonian
 
 
-# -------------------- Lazy attribute loader --------------------
 def __getattr__(name: str):
     if name in {"BaseHamiltonian"}:
         from . import base as _base
@@ -73,7 +71,6 @@ def __dir__():
     return sorted(set(list(globals().keys()) + __all__))
 
 
-# -------------------- Convenience wrappers (remain lazy internally) --------------------
 def build_ising(*args, **kwargs):
     """
     Convenience builder for the transverse-field Ising family.

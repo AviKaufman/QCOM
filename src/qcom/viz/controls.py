@@ -5,7 +5,7 @@ Plotting helpers for control time series.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Mapping
+from typing import Mapping, cast
 
 import numpy as np
 
@@ -91,14 +91,16 @@ def plot_time_series(
 
     if chosen_preset is not None:
         preset = presets[chosen_preset]
-        default_labels = (
-            preset["labels_norm"] if time_series.mode == "normalized" else preset["labels_abs"]
+        default_labels = cast(
+            Mapping[str, str],
+            preset["labels_norm"] if time_series.mode == "normalized" else preset["labels_abs"],
         )
         for c in canon_list:
             if c not in labels and c in default_labels:
                 labels[c] = default_labels[c]
         if time_series.mode == "normalized":
-            for c, rng in preset.get("norm_y_hints", {}).items():
+            norm_y_hints = cast(Mapping[str, tuple[float, float]], preset.get("norm_y_hints", {}))
+            for c, rng in norm_y_hints.items():
                 if c in canon_list and c not in y_hints:
                     y_hints[c] = rng
 

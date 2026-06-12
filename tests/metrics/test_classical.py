@@ -1,4 +1,3 @@
-# tests/test_metrics_classical.py
 import math
 import numpy as np
 import pytest
@@ -12,14 +11,8 @@ from qcom.metrics.classical import (
 from qcom.core import MutualInformationResult
 
 
-# -------------------- Fixtures / simple helpers --------------------
-
-
 def _isclose(a, b, rtol=1e-9, atol=1e-12):
     return np.isclose(a, b, rtol=rtol, atol=atol)
-
-
-# -------------------- compute_shannon_entropy --------------------
 
 
 def test_shannon_entropy_uniform_two_bits_bits_base2():
@@ -58,9 +51,6 @@ def test_shannon_entropy_zero_or_negative_total_gives_zero():
     assert compute_shannon_entropy(probs, total_prob=0.0, base=2) == 0.0
 
 
-# -------------------- compute_reduced_shannon_entropy --------------------
-
-
 def test_reduced_entropy_matches_full_when_subsystem_is_all_indices():
     probs = {"00": 0.25, "01": 0.25, "10": 0.25, "11": 0.25}
     H_full = compute_shannon_entropy(probs, total_prob=None, base=2)
@@ -83,9 +73,6 @@ def test_reduced_entropy_configuration_vs_indices_equivalence():
     H_A_cfg = compute_reduced_shannon_entropy(probs, configuration=config, target_region=0, base=2)
     H_A_idx = compute_reduced_shannon_entropy(probs, indices=[0], base=2)
     assert _isclose(H_A_cfg, H_A_idx)
-
-
-# -------------------- compute_mutual_information --------------------
 
 
 def test_mutual_information_zero_for_independent_bits():
@@ -127,9 +114,6 @@ def test_mutual_information_indices_argument_path():
     assert _isclose(mutual_info, 1.0)
 
 
-# -------------------- compute_conditional_entropy --------------------
-
-
 def test_conditional_entropy_relation_matches_definition():
     # Use a correlated example (same as above)
     probs = {"00": 0.5, "11": 0.5}
@@ -153,9 +137,6 @@ def test_conditional_entropy_indices_path_only_B_needed():
     H_B = compute_reduced_shannon_entropy(probs, indices=[1], base=2)
     H_cond = compute_conditional_entropy(probs, b_indices=[1], base=2)
     assert _isclose(H_cond, H_AB - H_B)
-
-
-# -------------------- Error handling --------------------
 
 
 def test_errors_invalid_prob_dict_types_and_values():

@@ -1,16 +1,11 @@
-# tests/test_ops.py
 import pytest
 
 from qcom.data.ops import (
     normalize_to_probabilities,
-    truncate_probabilities,
+    print_most_probable_bitstrings,
     print_most_probable_data,
+    truncate_probabilities,
 )
-
-
-# ------------------------------------------------------------------------------------
-# normalize_to_probabilities
-# ------------------------------------------------------------------------------------
 
 
 def test_normalize_empty_ok_and_sum():
@@ -29,11 +24,6 @@ def test_normalize_raises_on_zero_total():
         _ = normalize_to_probabilities({"0": 1}, total_count=0)
 
 
-# ------------------------------------------------------------------------------------
-# truncate_probabilities
-# ------------------------------------------------------------------------------------
-
-
 def test_truncate_keeps_equal_and_above_threshold():
     probs = {"00": 0.50, "01": 0.20, "10": 0.19, "11": 0.11}
     out = truncate_probabilities(probs, threshold=0.20)
@@ -50,21 +40,13 @@ def test_truncate_empty_input_ok():
     assert truncate_probabilities({}, threshold=0.1) == {}
 
 
-# ------------------------------------------------------------------------------------
-# print_most_probable_data (stdout capture)
-# ------------------------------------------------------------------------------------
-
-
-def test_print_most_probable_top_n(capsys):
+def test_print_most_probable_bitstrings_top_n(capsys):
     probs = {"00": 0.1, "01": 0.4, "10": 0.3, "11": 0.2}
-    print_most_probable_data(probs, n=3)
+    print_most_probable_bitstrings(probs, n=3)
 
     captured = capsys.readouterr().out.strip().splitlines()
-    # Header
     assert captured[0].strip() == "Top 3 Most probable bit strings:"
 
-    # The function prints in descending probability order; check the first three.
-    # Lines look like: "1.  Bit string: 01, Probability: 0.40000000"
     line1 = captured[1]
     line2 = captured[2]
     line3 = captured[3]
@@ -74,11 +56,17 @@ def test_print_most_probable_top_n(capsys):
     assert "3." in line3 and "Bit string: 11" in line3 and "0.20000000" in line3
 
 
-def test_print_most_probable_n_larger_than_dict(capsys):
+def test_print_most_probable_bitstrings_n_larger_than_dict(capsys):
     probs = {"0": 0.7, "1": 0.3}
-    print_most_probable_data(probs, n=5)
+    print_most_probable_bitstrings(probs, n=5)
     out = capsys.readouterr().out
 
-    # Should still print header with requested n, and only two entries.
     assert "Top 5 Most probable bit strings:" in out
     assert out.count("Bit string: ") == 2
+
+
+def test_print_most_probable_data_compatibility_alias(capsys):
+    probs = {"0": 0.7, "1": 0.3}
+    with pytest.warns(DeprecationWarning, match="print_most_probable_bitstrings"):
+        print_most_probable_data(probs, n=1)
+    assert "Bit string: 0" in capsys.readouterr().out
