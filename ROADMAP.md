@@ -23,6 +23,10 @@ update any linked docs that are now out of sync.
 - Preferred API names now dominate README examples, tutorials, examples, and
   repo-owned tests; legacy names remain only as compatibility shims and
   explicit alias tests.
+- Markdown ownership is kept clean across README, CONTRIBUTING, repo-landscape,
+  and ROADMAP.
+- Dead-code tooling still flags lazy exports and compatibility aliases, and the
+  repo treats those as intentional false positives.
 - `mypy` now covers the full `src/qcom` package instead of a hand-picked subset.
 - Control adapters are explicit: the registry remains available, but no default
   adapters are auto-registered.

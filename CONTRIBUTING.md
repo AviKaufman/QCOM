@@ -180,6 +180,16 @@ nox -s tutorials
 If `nox` is unavailable in the local environment, use equivalent `uv run --with`
 commands and report the exact commands used.
 
+## Dead Code Review
+
+- Use `vulture` as a review aid, not as an automatic delete list.
+- Expect lazy exports, compatibility aliases, and intentional facade helpers to
+  appear as false positives.
+- Before removing an apparently unused symbol, trace its package exports,
+  compatibility wrappers, tests, notebooks, and docs references.
+- If a false positive is expected to remain, keep a short comment or roadmap
+  note that explains why.
+
 ## Tutorials
 
 - Keep notebook outputs current and intentional in git. Avoid stale outputs from
