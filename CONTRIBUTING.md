@@ -8,7 +8,9 @@ and easy to validate.
 - Library code lives in `src/qcom`.
 - Tests live in `tests` and should mirror the package subsystem they cover.
 - Examples live in `examples` and should be runnable scripts.
-- Tutorials live in `tutorials` and should remain output-free notebooks.
+- Tutorials live in `tutorials` and may keep saved outputs when they help the
+  lesson. Re-execute notebooks before committing so any outputs are current and
+  intentional.
 - Development utilities live in `scripts`.
 - `README.md` is the user-facing front door and documentation map.
 - `CONTRIBUTING.md` is the canonical contributor standard.
@@ -180,7 +182,8 @@ commands and report the exact commands used.
 
 ## Tutorials
 
-- Keep notebook outputs and execution counts cleared in git.
+- Keep notebook outputs current and intentional in git. Avoid stale outputs from
+  failed or exploratory runs.
 - Preserve the tutorial teaching style: Markdown should explain the reasoning,
   and code cells should show real usage.
 - Validate notebooks with `scripts/validate_tutorials.py`.

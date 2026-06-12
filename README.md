@@ -91,7 +91,8 @@ mutual_information = compute_mutual_information(
 ## Examples And Tutorials
 
 Runnable scripts live in [examples](examples). Step-by-step notebooks live in
-[tutorials](tutorials) and should remain output-free in git.
+[tutorials](tutorials). They are teaching artifacts, so keep outputs current and
+intentional when they help the lesson.
 
 Suggested tutorial order:
 

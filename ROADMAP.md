@@ -20,6 +20,9 @@ update any linked docs that are now out of sync.
   bitstring workflows.
 - Compatibility aliases are retained and emit `DeprecationWarning` through
   `src/qcom/_internal/deprecations.py`.
+- Preferred API names now dominate README examples, tutorials, examples, and
+  repo-owned tests; legacy names remain only as compatibility shims and
+  explicit alias tests.
 - `mypy` now covers the full `src/qcom` package instead of a hand-picked subset.
 - Control adapters are explicit: the registry remains available, but no default
   adapters are auto-registered.
@@ -35,10 +38,8 @@ update any linked docs that are now out of sync.
 ## Immediate Fixes
 
 ### Now
-
-- Keep the preferred API names dominant in README examples, tutorials, examples,
-  and repo-owned tests.
-- Preserve output-free tutorial notebooks after API or documentation changes.
+- Keep tutorial notebook outputs current and intentional after API or
+  documentation changes.
 
 ### Next
 
@@ -99,8 +100,8 @@ update any linked docs that are now out of sync.
 ## Documentation And Tutorials
 
 ### Now
-
-- Keep tutorials output-free in git and validate them after notebook changes.
+- Validate tutorials after notebook changes and refresh their outputs when the
+  teaching flow benefits from saved results.
 - Update docs in the same change as behavior, public API, workflow, or tutorial
   edits.
 - Keep old API names out of teaching material except in explicit compatibility
