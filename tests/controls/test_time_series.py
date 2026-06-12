@@ -1,34 +1,40 @@
-# tests/test_time_series.py
 import numpy as np
 import pytest
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 # If installed as a package:
 from qcom.controls.time_series import TimeSeries
 # If running inside the repo instead, use:
 # from time_series import TimeSeries
 
-# ----------------------------- Fixtures -----------------------------
 
 @pytest.fixture
 def ts_multi():
     # Omega over [0, 2e-6], Delta over [-1e-6, 0], Phi single point at 2e-6
     return TimeSeries(
         Omega=([0.0, 1e-6, 2e-6], [0.0, 0.5, 1.0]),
-        Delta=([-1e-6, 0.0],      [-0.5, 0.0]),
-        Phi=([2e-6],             [3.14159]),
+        Delta=([-1e-6, 0.0], [-0.5, 0.0]),
+        Phi=([2e-6], [3.14159]),
     )
+
 
 @pytest.fixture
 def ts_empty():
     return TimeSeries()
 
+
 @pytest.fixture
 def empty_abs():
     return TimeSeries(mode="absolute")
 
+
 @pytest.fixture
 def empty_norm():
     return TimeSeries(mode="normalized")
+
 
 @pytest.fixture
 def base_abs():
@@ -37,6 +43,7 @@ def base_abs():
     ts.add_series("Omega", [0.0, 1.0, 2.0], [0.0, 1.0, 2.0])
     return ts
 
+
 @pytest.fixture
 def base_norm():
     """Normalized-mode series with typical ranges."""
@@ -44,6 +51,7 @@ def base_norm():
     ts.add_series("Omega", [0.0, 1.0], [0.0, 1.0])
     ts.add_series("Delta", [0.0, 1.0, 2.0], [-1.0, 0.0, 1.0])
     return ts
+
 
 @pytest.fixture
 def ts_two_channels_abs():
@@ -58,26 +66,26 @@ def ts_two_channels_abs():
 def ts_mixed_negative():
     """Absolute-mode with one channel starting negative."""
     ts = TimeSeries(mode="absolute")
-    ts.add_series("Omega", [1.0, 2.0], [5.0, 6.0])     # starts at +1
-    ts.add_series("Delta", [-3.0, -1.0], [7.0, 8.0])   # starts at -3 (earliest)
+    ts.add_series("Omega", [1.0, 2.0], [5.0, 6.0])  # starts at +1
+    ts.add_series("Delta", [-3.0, -1.0], [7.0, 8.0])  # starts at -3 (earliest)
     return ts
+
 
 @pytest.fixture
 def ts_abs():
     ts = TimeSeries(mode="absolute")
-    ts.add_series("Omega", [0.0, 1.0, 2.0], [0.0,  1.0,  0.0])
-    ts.add_series("Delta", [0.5, 1.5],       [10.0, 12.0])
+    ts.add_series("Omega", [0.0, 1.0, 2.0], [0.0, 1.0, 0.0])
+    ts.add_series("Delta", [0.5, 1.5], [10.0, 12.0])
     return ts
+
 
 @pytest.fixture
 def ts_norm():
     ts = TimeSeries(mode="normalized")
-    ts.add_series("Omega", [0.0, 1.0], [0.0, 1.0])   # in [0,1]
+    ts.add_series("Omega", [0.0, 1.0], [0.0, 1.0])  # in [0,1]
     ts.add_series("Delta", [0.0, 1.0], [-1.0, 1.0])  # in [-1,1]
     return ts
 
-
-# ----------------------------- __init__ (constructor) -----------------------------
 
 def test_init_empty_ok():
     ts = TimeSeries()
@@ -152,15 +160,11 @@ def test_init_allows_negative_times():
     assert t[0] < 0.0 and t[-1] == 0.0
 
 
-# ----------------------------- normalized-mode bounds -----------------------------
-
-
 def test_init_normalized_phi_unbounded():
     # Phi has no bounds in normalized mode
     ts = TimeSeries(mode="normalized", Phi=([0.0, 1.0], [10.0, -123.456]))
     assert "Phi" in ts._channels
 
-# ----------------------------- channels (read-only mapping of read-only arrays) -----------------------------
 
 def test_channels_returns_readonly_mapping_and_views():
     t = [0.0, 1e-6, 2e-6]
@@ -196,8 +200,6 @@ def test_channels_empty_mapping_when_no_channels():
         ch["Omega"] = (np.array([0.0]), np.array([0.0]))
 
 
-# ----------------------------- channel_names (order and content) -----------------------------
-
 def test_channel_names_reflect_insertion_order():
     # Insert Delta first, then Omega; dicts preserve insertion order in Py3.7+
     ts = TimeSeries(
@@ -216,8 +218,6 @@ def test_channel_names_reflect_insertion_order():
     assert ts3.channel_names == tuple()
 
 
-# ----------------------------- is_empty -----------------------------
-
 def test_is_empty_true_for_empty_false_when_channel_present():
     ts = TimeSeries()
     assert ts.is_empty is True
@@ -225,23 +225,18 @@ def test_is_empty_true_for_empty_false_when_channel_present():
     ts2 = TimeSeries(Omega=([0.0], [0.0]))
     assert ts2.is_empty is False
 
-# ----------------------------- __len__ -----------------------------
 
 def test_len_counts_channels(ts_multi, ts_empty):
     assert len(ts_empty) == 0
     assert len(ts_multi) == 3
 
 
-# ----------------------------- has_channel -----------------------------
-
 def test_has_channel_true_false(ts_multi):
     assert ts_multi.has_channel("Omega") is True
     assert ts_multi.has_channel("Delta") is True
-    assert ts_multi.has_channel("Phi")   is True
-    assert ts_multi.has_channel("Nope")  is False
+    assert ts_multi.has_channel("Phi") is True
+    assert ts_multi.has_channel("Nope") is False
 
-
-# ----------------------------- times(name) -----------------------------
 
 def test_times_returns_readonly_view_and_matches(ts_multi):
     t = ts_multi.times("Omega")
@@ -249,12 +244,11 @@ def test_times_returns_readonly_view_and_matches(ts_multi):
     assert t.flags.writeable is False
     np.testing.assert_allclose(t, np.array([0.0, 1e-6, 2e-6], dtype=np.float64))
 
+
 def test_times_raises_for_missing_channel(ts_multi):
     with pytest.raises(KeyError):
         ts_multi.times("NoSuchChannel")
 
-
-# ----------------------------- values(name) -----------------------------
 
 def test_values_returns_readonly_view_and_matches(ts_multi):
     v = ts_multi.values("Delta")
@@ -262,34 +256,35 @@ def test_values_returns_readonly_view_and_matches(ts_multi):
     assert v.flags.writeable is False
     np.testing.assert_allclose(v, np.array([-0.5, 0.0], dtype=np.float64))
 
+
 def test_values_raises_for_missing_channel(ts_multi):
     with pytest.raises(KeyError):
         ts_multi.values("NoSuchChannel")
 
 
-# ----------------------------- domain(name=None) -----------------------------
-
 def test_domain_per_channel(ts_multi):
     # Exact per-channel domains
     assert ts_multi.domain("Omega") == (0.0, 2e-6)
     assert ts_multi.domain("Delta") == (-1e-6, 0.0)
-    assert ts_multi.domain("Phi")   == (2e-6, 2e-6)  # single point domain
+    assert ts_multi.domain("Phi") == (2e-6, 2e-6)  # single point domain
+
 
 def test_domain_union(ts_multi):
     # Union should span min(firsts) to max(lasts)
     tmin, tmax = ts_multi.domain()
     assert tmin == -1e-6
-    assert tmax ==  2e-6
+    assert tmax == 2e-6
+
 
 def test_domain_raises_on_missing_channel(ts_multi):
     with pytest.raises(KeyError):
         ts_multi.domain("NoSuchChannel")
 
+
 def test_domain_raises_when_empty(ts_empty):
     with pytest.raises(ValueError):
         ts_empty.domain()
 
-# ----------------------------- __repr__ -----------------------------
 
 def test_repr_empty():
     ts = TimeSeries()
@@ -297,6 +292,7 @@ def test_repr_empty():
     assert "TimeSeries(" in s
     assert "mode='absolute'" in s
     assert "channels=∅" in s
+
 
 def test_repr_single_channel_single_point():
     ts = TimeSeries(Omega=([1.0], [0.5]))
@@ -306,14 +302,13 @@ def test_repr_single_channel_single_point():
     assert "→" in s
     assert "s]" in s
 
+
 def test_repr_multiple_channels_order_is_insertion_order():
     ts = TimeSeries(Delta=([0.0, 1.0], [0.0, 0.1]), Omega=([0.0], [1.0]))
     s = repr(ts)
     # Should list Delta before Omega based on kwargs insertion
     assert s.index("Delta[L=2") < s.index("Omega[L=1")
 
-
-# ----------------------------- _rel_tol -----------------------------
 
 def test_rel_tol_small_and_large():
     # Static method behavior: 1e-12 * max(1, |t|)
@@ -325,14 +320,13 @@ def test_rel_tol_small_and_large():
     assert TimeSeries._rel_tol(np.float64(5.0)) == pytest.approx(5e-12)
 
 
-# ----------------------------- _check_normalized_bounds -----------------------------
-
 def test_check_normalized_bounds_noop_in_absolute_mode():
     ts = TimeSeries(mode="absolute")
     # Should not raise for any channel/value
     ts._check_normalized_bounds("Omega", np.array([-10.0, 10.0]))
     ts._check_normalized_bounds("Delta", np.array([-2.0, 2.0]))
-    ts._check_normalized_bounds("Phi",   np.array([1e6, -1e6]))
+    ts._check_normalized_bounds("Phi", np.array([1e6, -1e6]))
+
 
 def test_check_normalized_bounds_omega_ok_and_violations():
     ts = TimeSeries(mode="normalized")
@@ -347,6 +341,7 @@ def test_check_normalized_bounds_omega_ok_and_violations():
     with pytest.raises(ValueError):
         ts._check_normalized_bounds("OMEGA", np.array([1.0000000001]))
 
+
 def test_check_normalized_bounds_delta_ok_and_violations():
     ts = TimeSeries(mode="normalized")
     # In-range OK
@@ -360,12 +355,12 @@ def test_check_normalized_bounds_delta_ok_and_violations():
     with pytest.raises(ValueError):
         ts._check_normalized_bounds("DELTA", np.array([1.0000001]))
 
+
 def test_check_normalized_bounds_phi_unbounded():
     ts = TimeSeries(mode="normalized")
     # Phi is intentionally unbounded in normalized mode
     ts._check_normalized_bounds("Phi", np.array([-1e9, 0.0, 1e9]))
 
-# ----------------------------- add_point -----------------------------
 
 def test_add_point_creates_channel_and_returns_index(empty_abs):
     ts = empty_abs
@@ -375,14 +370,16 @@ def test_add_point_creates_channel_and_returns_index(empty_abs):
     np.testing.assert_allclose(ts.times("Omega"), [0.0])
     np.testing.assert_allclose(ts.values("Omega"), [1.0])
 
+
 def test_add_point_inserts_sorted_and_returns_position(empty_abs):
     ts = empty_abs
-    ts.add_point("Omega", 1.0, 10.0)   # [1.0]
-    ts.add_point("Omega", 0.0,  0.0)   # insert left -> [0.0, 1.0]
-    idx = ts.add_point("Omega", 0.5,  5.0)   # middle -> [0.0, 0.5, 1.0]
+    ts.add_point("Omega", 1.0, 10.0)  # [1.0]
+    ts.add_point("Omega", 0.0, 0.0)  # insert left -> [0.0, 1.0]
+    idx = ts.add_point("Omega", 0.5, 5.0)  # middle -> [0.0, 0.5, 1.0]
     assert idx == 1
     np.testing.assert_allclose(ts.times("Omega"), [0.0, 0.5, 1.0])
     np.testing.assert_allclose(ts.values("Omega"), [0.0, 5.0, 10.0])
+
 
 def test_add_point_replaces_within_default_tol(empty_abs):
     ts = empty_abs
@@ -394,6 +391,7 @@ def test_add_point_replaces_within_default_tol(empty_abs):
     np.testing.assert_allclose(ts.times("Omega"), [1.0])
     np.testing.assert_allclose(ts.values("Omega"), [20.0])
 
+
 def test_add_point_explicit_tol_controls_replacement(empty_abs):
     ts = empty_abs
     ts.add_point("Omega", 1.0, 1.0)
@@ -403,12 +401,14 @@ def test_add_point_explicit_tol_controls_replacement(empty_abs):
     np.testing.assert_allclose(ts.times("Omega"), [1.0, 1.0 + 1e-15])
     np.testing.assert_allclose(ts.values("Omega"), [1.0, 2.0])
 
+
 def test_add_point_nonfinite_raises(empty_abs):
     ts = empty_abs
     with pytest.raises(ValueError):
         ts.add_point("Omega", np.nan, 1.0)
     with pytest.raises(ValueError):
         ts.add_point("Omega", 0.0, np.inf)
+
 
 def test_add_point_normalized_bounds_omega(empty_norm):
     ts = empty_norm
@@ -419,14 +419,16 @@ def test_add_point_normalized_bounds_omega(empty_norm):
     with pytest.raises(ValueError):
         ts.add_point("Omega", 3.0, 1.0000001)  # > 1
 
+
 def test_add_point_normalized_bounds_delta(empty_norm):
     ts = empty_norm
     ts.add_point("Delta", 0.0, -1.0)  # ok
-    ts.add_point("Delta", 1.0,  1.0)  # ok
+    ts.add_point("Delta", 1.0, 1.0)  # ok
     with pytest.raises(ValueError):
         ts.add_point("Delta", 2.0, -1.000001)
     with pytest.raises(ValueError):
-        ts.add_point("Delta", 3.0,  1.000001)
+        ts.add_point("Delta", 3.0, 1.000001)
+
 
 def test_add_point_case_insensitive_channel_norm_checks(empty_norm):
     ts = empty_norm
@@ -435,23 +437,21 @@ def test_add_point_case_insensitive_channel_norm_checks(empty_norm):
         ts.add_point("OMEGA", 1.0, 1.1)
 
 
-# ----------------------------- add_series -----------------------------
-
 def test_add_series_creates_channel_sorted_and_dedup(empty_abs):
     ts = empty_abs
     # Unsorted with duplicate times; last value wins for duplicates
-    L = ts.add_series("Omega",
-                      times=[0.2, 0.1, 0.2, 0.0],
-                      values=[2.0, 1.0, 3.0, 0.0])
+    L = ts.add_series("Omega", times=[0.2, 0.1, 0.2, 0.0], values=[2.0, 1.0, 3.0, 0.0])
     assert L == 3
-    np.testing.assert_allclose(ts.times("Omega"),  [0.0, 0.1, 0.2])
+    np.testing.assert_allclose(ts.times("Omega"), [0.0, 0.1, 0.2])
     np.testing.assert_allclose(ts.values("Omega"), [0.0, 1.0, 3.0])
+
 
 def test_add_series_returns_existing_length_if_empty_input(empty_abs):
     ts = empty_abs
     assert ts.add_series("Omega", [], []) == 0
     ts.add_point("Omega", 1.0, 7.0)
     assert ts.add_series("Omega", [], []) == 1
+
 
 def test_add_series_nonfinite_raises(empty_abs):
     ts = empty_abs
@@ -460,10 +460,12 @@ def test_add_series_nonfinite_raises(empty_abs):
     with pytest.raises(ValueError):
         ts.add_series("Omega", [0.0, 1.0], [1.0, np.inf])
 
+
 def test_add_series_shape_mismatch_raises(empty_abs):
     ts = empty_abs
     with pytest.raises(ValueError):
         ts.add_series("Omega", [0.0], [1.0, 2.0])
+
 
 def test_add_series_normalized_bounds_checked_batch(empty_norm):
     ts = empty_norm
@@ -472,14 +474,16 @@ def test_add_series_normalized_bounds_checked_batch(empty_norm):
     with pytest.raises(ValueError):
         ts.add_series("Delta", [0.0, 1.0], [-1.1, 0.0])  # < -1
 
+
 def test_add_series_append_fast_path(empty_abs):
     ts = empty_abs
     ts.add_series("Omega", [0.0, 1.0], [0.0, 1.0])
     # All new times strictly after existing -> append path
     L = ts.add_series("Omega", [2.0, 3.0], [2.0, 3.0])
     assert L == 4
-    np.testing.assert_allclose(ts.times("Omega"),  [0.0, 1.0, 2.0, 3.0])
+    np.testing.assert_allclose(ts.times("Omega"), [0.0, 1.0, 2.0, 3.0])
     np.testing.assert_allclose(ts.values("Omega"), [0.0, 1.0, 2.0, 3.0])
+
 
 def test_add_series_prepend_fast_path(empty_abs):
     ts = empty_abs
@@ -487,8 +491,9 @@ def test_add_series_prepend_fast_path(empty_abs):
     # All new times strictly before existing -> prepend path
     L = ts.add_series("Omega", [0.0, 1.0], [0.0, 1.0])
     assert L == 4
-    np.testing.assert_allclose(ts.times("Omega"),  [0.0, 1.0, 2.0, 3.0])
+    np.testing.assert_allclose(ts.times("Omega"), [0.0, 1.0, 2.0, 3.0])
     np.testing.assert_allclose(ts.values("Omega"), [0.0, 1.0, 2.0, 3.0])
+
 
 def test_add_series_general_merge_with_replacement(empty_abs):
     ts = empty_abs
@@ -496,8 +501,9 @@ def test_add_series_general_merge_with_replacement(empty_abs):
     # new overlaps at t=1.0 (replace), inserts at 2.0, and duplicates at 3.0 (replace)
     L = ts.add_series("Omega", [1.0, 2.0, 3.0], [10.0, 20.0, 30.0])
     assert L == 4
-    np.testing.assert_allclose(ts.times("Omega"),  [0.0, 1.0, 2.0, 3.0])
+    np.testing.assert_allclose(ts.times("Omega"), [0.0, 1.0, 2.0, 3.0])
     np.testing.assert_allclose(ts.values("Omega"), [0.0, 10.0, 20.0, 30.0])
+
 
 def test_add_series_duplicate_collapse_in_incoming_last_wins(empty_abs):
     ts = empty_abs
@@ -505,8 +511,9 @@ def test_add_series_duplicate_collapse_in_incoming_last_wins(empty_abs):
     # Incoming has 0.5 three times; last value wins before merge
     L = ts.add_series("Omega", [0.5, 0.2, 0.5, 0.5], [5.0, 2.0, 6.0, 7.0])
     assert L == 3
-    np.testing.assert_allclose(ts.times("Omega"),  [0.0, 0.2, 0.5])
+    np.testing.assert_allclose(ts.times("Omega"), [0.0, 0.2, 0.5])
     np.testing.assert_allclose(ts.values("Omega"), [0.0, 2.0, 7.0])
+
 
 def test_add_series_tolerance_controls_duplicate_vs_insert(empty_abs):
     ts = empty_abs
@@ -514,50 +521,54 @@ def test_add_series_tolerance_controls_duplicate_vs_insert(empty_abs):
     # By default, 1.0 + 1e-15 is within default rtol -> replacement
     L1 = ts.add_series("Omega", [1.0 + 1e-15], [2.0])
     assert L1 == 1
-    np.testing.assert_allclose(ts.times("Omega"),  [1.0])
+    np.testing.assert_allclose(ts.times("Omega"), [1.0])
     np.testing.assert_allclose(ts.values("Omega"), [2.0])
     # With tiny explicit tol, treat as new sample (insert)
     L2 = ts.add_series("Omega", [1.0 + 1e-15], [3.0], tol=1e-16)
     assert L2 == 2
-    np.testing.assert_allclose(ts.times("Omega"),  [1.0, 1.0 + 1e-15])
+    np.testing.assert_allclose(ts.times("Omega"), [1.0, 1.0 + 1e-15])
     np.testing.assert_allclose(ts.values("Omega"), [2.0, 3.0])
 
-# ----------------------------- remove_point -----------------------------
 
 def test_remove_point_exact_match_middle(base_abs):
     ts = base_abs
     # remove t=1.0 (middle)
     idx = ts.remove_point("Omega", 1.0)
     assert idx == 1
-    np.testing.assert_allclose(ts.times("Omega"),  [0.0, 2.0])
+    np.testing.assert_allclose(ts.times("Omega"), [0.0, 2.0])
     np.testing.assert_allclose(ts.values("Omega"), [0.0, 2.0])
+
 
 def test_remove_point_exact_match_first(base_abs):
     ts = base_abs
     idx = ts.remove_point("Omega", 0.0)
     assert idx == 0
-    np.testing.assert_allclose(ts.times("Omega"),  [1.0, 2.0])
+    np.testing.assert_allclose(ts.times("Omega"), [1.0, 2.0])
     np.testing.assert_allclose(ts.values("Omega"), [1.0, 2.0])
+
 
 def test_remove_point_exact_match_last(base_abs):
     ts = base_abs
     idx = ts.remove_point("Omega", 2.0)
     assert idx == 2
-    np.testing.assert_allclose(ts.times("Omega"),  [0.0, 1.0])
+    np.testing.assert_allclose(ts.times("Omega"), [0.0, 1.0])
     np.testing.assert_allclose(ts.values("Omega"), [0.0, 1.0])
+
 
 def test_remove_point_within_default_tol_replaces_match(base_abs):
     ts = base_abs
     # default tol ~ 1e-12 * max(1, |t|)
     idx = ts.remove_point("Omega", 1.0 + 1e-15)  # within default tol of 1.0
     assert idx == 1
-    np.testing.assert_allclose(ts.times("Omega"),  [0.0, 2.0])
+    np.testing.assert_allclose(ts.times("Omega"), [0.0, 2.0])
     np.testing.assert_allclose(ts.values("Omega"), [0.0, 2.0])
+
 
 def test_remove_point_no_match_raises_keyerror(base_abs):
     ts = base_abs
     with pytest.raises(KeyError):
         ts.remove_point("Omega", 1.1, tol=1e-6)  # nearest is 1.0 but outside tol
+
 
 def test_remove_point_missing_channel_raises():
     ts = TimeSeries()
@@ -565,14 +576,13 @@ def test_remove_point_missing_channel_raises():
         ts.remove_point("Omega", 0.0)
 
 
-# ----------------------------- remove_at -----------------------------
-
 def test_remove_at_middle(base_abs):
     ts = base_abs
     idx = ts.remove_at("Omega", 1)
     assert idx == 1
-    np.testing.assert_allclose(ts.times("Omega"),  [0.0, 2.0])
+    np.testing.assert_allclose(ts.times("Omega"), [0.0, 2.0])
     np.testing.assert_allclose(ts.values("Omega"), [0.0, 2.0])
+
 
 def test_remove_at_first_and_last_leave_empty_channel():
     ts = TimeSeries()
@@ -581,8 +591,9 @@ def test_remove_at_first_and_last_leave_empty_channel():
     idx = ts.remove_at("Omega", 0)
     assert idx == 0
     # Channel still present but empty arrays (by current design)
-    np.testing.assert_allclose(ts.times("Omega"),  np.array([]))
+    np.testing.assert_allclose(ts.times("Omega"), np.array([]))
     np.testing.assert_allclose(ts.values("Omega"), np.array([]))
+
 
 def test_remove_at_index_oob_raises(base_abs):
     ts = base_abs
@@ -591,13 +602,12 @@ def test_remove_at_index_oob_raises(base_abs):
     with pytest.raises(IndexError):
         ts.remove_at("Omega", 3)  # valid indices: 0..2
 
+
 def test_remove_at_missing_channel_raises():
     ts = TimeSeries()
     with pytest.raises(KeyError):
         ts.remove_at("Omega", 0)
 
-
-# ----------------------------- clear_channel & clear -----------------------------
 
 def test_clear_channel_removes_key(base_norm):
     ts = base_norm
@@ -607,6 +617,7 @@ def test_clear_channel_removes_key(base_norm):
     # idempotent: clearing again should not raise
     ts.clear_channel("Delta")
     assert "Delta" not in ts.channels
+
 
 def test_clear_removes_all_channels(base_norm):
     ts = base_norm
@@ -618,7 +629,6 @@ def test_clear_removes_all_channels(base_norm):
     with pytest.raises(ValueError):
         ts.domain()
 
-# ----------------------------- shift_time -----------------------------
 
 def test_shift_time_no_channels_no_error():
     ts = TimeSeries()
@@ -661,8 +671,6 @@ def test_shift_time_negative_shift(ts_two_channels_abs):
     np.testing.assert_allclose(ts.times("Omega"), np.array([-0.5, 0.5, 1.5]))
     np.testing.assert_allclose(ts.times("Delta"), np.array([0.0, 1.5]))
 
-
-# ----------------------------- normalize_start -----------------------------
 
 def test_normalize_start_no_channels_is_noop():
     ts = TimeSeries()
@@ -713,7 +721,6 @@ def test_normalize_then_shift_roundtrip(ts_two_channels_abs):
     np.testing.assert_allclose(ts.times("Omega"), np.array([0.0, 1.0, 2.0]))
     np.testing.assert_allclose(ts.times("Delta"), np.array([0.5, 2.0]))
 
-# ----------------------------- value_at: basic behavior -----------------------------
 
 def test_value_at_interpolates_per_channel(ts_abs):
     # Omega: triangle 0->1->0 over [0,2]
@@ -721,6 +728,7 @@ def test_value_at_interpolates_per_channel(ts_abs):
     out = ts_abs.value_at(tq, channels=["Omega"])
     y = out["Omega"]
     np.testing.assert_allclose(y, [0.0, 0.5, 1.0, 0.5, 0.0])
+
 
 def test_value_at_zero_outside_domain(ts_abs):
     # Delta domain is [0.5, 1.5]
@@ -731,10 +739,12 @@ def test_value_at_zero_outside_domain(ts_abs):
     # Between 0.5(10) and 1.5(12): at 1.0 expect 11.0
     np.testing.assert_allclose(y, [0.0, 10.0, 11.0, 12.0, 0.0])
 
+
 def test_value_at_unknown_channel_returns_zeros(ts_abs):
     tq = [0.0, 0.5, 1.0]
     out = ts_abs.value_at(tq, channels=["NotAChannel"])
     np.testing.assert_array_equal(out["NotAChannel"], np.zeros(3, dtype=np.float64))
+
 
 def test_value_at_all_present_when_channels_none(ts_abs):
     tq = [0.0, 1.0, 2.0]
@@ -744,10 +754,12 @@ def test_value_at_all_present_when_channels_none(ts_abs):
     assert out["Omega"].shape == (3,)
     assert out["Delta"].dtype == np.float64
 
+
 def test_value_at_empty_and_channels_none_returns_empty_dict():
     ts = TimeSeries()
     out = ts.value_at([0.0, 1.0, 2.0])
     assert out == {}
+
 
 def test_value_at_boundaries_exact_values(ts_abs):
     # Exact sample points should give exact values
@@ -755,11 +767,10 @@ def test_value_at_boundaries_exact_values(ts_abs):
     np.testing.assert_allclose(out["Omega"], [0.0, 1.0, 0.0])
 
 
-# ----------------------------- value_at: input validation -----------------------------
-
 def test_value_at_rejects_non_1d_input(ts_abs):
     with pytest.raises(ValueError):
         ts_abs.value_at([[0.0, 1.0]])  # 2D
+
 
 def test_value_at_rejects_nan_inf(ts_abs):
     with pytest.raises(ValueError):
@@ -767,27 +778,30 @@ def test_value_at_rejects_nan_inf(ts_abs):
     with pytest.raises(ValueError):
         ts_abs.value_at([0.0, np.inf])
 
+
 def test_value_at_accepts_generators(ts_abs):
     def gen():
         for t in [0.0, 0.5, 1.0]:
             yield t
+
     out = ts_abs.value_at(gen(), channels=["Omega"])
     np.testing.assert_allclose(out["Omega"], [0.0, 0.5, 1.0])
 
-
-# ----------------------------- value_at_channel -----------------------------
 
 def test_value_at_channel_single(ts_abs):
     y = ts_abs.value_at_channel("Omega", [0.0, 0.5, 1.0, 1.5, 2.0])
     np.testing.assert_allclose(y, [0.0, 0.5, 1.0, 0.5, 0.0])
 
+
 def test_value_at_channel_unknown_returns_zeros(ts_abs):
     y = ts_abs.value_at_channel("Nope", [0.0, 0.5, 1.0])
     np.testing.assert_array_equal(y, np.zeros(3, dtype=np.float64))
 
+
 def test_value_at_channel_accepts_generator(ts_abs):
     y = ts_abs.value_at_channel("Delta", (t for t in [0.0, 0.75, 1.5, 2.0]))
     np.testing.assert_allclose(y, [0.0, 10.5, 12.0, 0.0])
+
 
 def test_value_at_channel_input_validation(ts_abs):
     with pytest.raises(ValueError):
@@ -796,11 +810,18 @@ def test_value_at_channel_input_validation(ts_abs):
         ts_abs.value_at_channel("Omega", [0.0, np.nan])
 
 
-# ----------------------------- normalized mode sanity -----------------------------
-
 def test_value_at_normalized_mode_behaves_same_interpolation(ts_norm):
     # Interpolation/zeroing rules are identical in normalized mode
     yO = ts_norm.value_at_channel("Omega", [0.0, 0.25, 0.5, 0.75, 1.0, 1.5])
     yD = ts_norm.value_at_channel("Delta", [-0.5, 0.0, 0.5, 1.0, 1.5])
     np.testing.assert_allclose(yO, [0.0, 0.25, 0.5, 0.75, 1.0, 0.0])
     np.testing.assert_allclose(yD, [0.0, -1.0, 0.0, 1.0, 0.0])
+
+
+def test_plot_wrapper_returns_figure_and_axes(ts_multi):
+    fig, axes = ts_multi.plot()
+    try:
+        assert fig is not None
+        assert len(axes) == 3
+    finally:
+        plt.close(fig)

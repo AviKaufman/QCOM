@@ -1,22 +1,18 @@
-# tests/test_metrics_states.py
 import numpy as np
 import pytest
 
 from qcom.metrics.states import create_density_matrix, compute_reduced_density_matrix
 
 
-# -------------------- Helpers --------------------
-
 def is_hermitian(M, tol=1e-12):
     return np.allclose(M, M.conj().T, atol=tol, rtol=0)
+
 
 def is_psd(M, tol=1e-12):
     # Numerical PSD check: all eigenvalues >= -tol
     evals = np.linalg.eigvalsh(M)
     return np.all(evals >= -tol)
 
-
-# -------------------- create_density_matrix --------------------
 
 def test_create_density_matrix_basic_properties():
     # |psi> = (|00> + i|11>) / sqrt(2)
@@ -45,8 +41,6 @@ def test_create_density_matrix_real_vector_yields_real_matrix():
     assert np.isrealobj(rho)
 
 
-# -------------------- compute_reduced_density_matrix --------------------
-
 def test_partial_trace_two_qubits_trace_out_one():
     # |psi> = (|00> + |11>) / sqrt(2) → Bell state
     psi = np.array([1.0, 0.0, 0.0, 1.0], dtype=np.complex128) / np.sqrt(2)
@@ -63,6 +57,7 @@ def test_partial_trace_two_qubits_trace_out_one():
     assert is_psd(rdm)
     assert np.allclose(rdm, 0.5 * np.eye(2))
 
+
 def test_partial_trace_two_qubits_keep_both_is_identity_mapping():
     # |psi> = |01>
     psi = np.array([0.0, 1.0, 0.0, 0.0], dtype=np.complex128)
@@ -72,6 +67,7 @@ def test_partial_trace_two_qubits_keep_both_is_identity_mapping():
     assert rdm.shape == (4, 4)
     assert np.allclose(rdm, rho)
 
+
 def test_partial_trace_two_qubits_trace_both_returns_scalar_one_by_one():
     # Any normalized pure state should reduce to [[1.0]] if all sites traced out
     psi = np.array([0.0, 1.0, 0.0, 0.0], dtype=np.complex128)
@@ -80,6 +76,7 @@ def test_partial_trace_two_qubits_trace_both_returns_scalar_one_by_one():
     assert rdm.shape == (1, 1)
     # Trace preserved
     assert np.isclose(rdm[0, 0], 1.0)
+
 
 def test_partial_trace_three_qubits_keep_middle_only():
     # N=3, index order: MSB ↔ site 0, then site 1, then LSB ↔ site 2
@@ -97,6 +94,7 @@ def test_partial_trace_three_qubits_keep_middle_only():
     assert np.allclose(rdm, expected)
     assert is_psd(rdm)
 
+
 def test_partial_trace_preserves_trace_for_mixed_state():
     # Build a mixed rho on 2 qubits: 0.3 |00><00| + 0.7 |11><11|
     rho = np.zeros((4, 4), dtype=np.complex128)
@@ -111,13 +109,13 @@ def test_partial_trace_preserves_trace_for_mixed_state():
     expected = np.diag([0.3, 0.7])
     assert np.allclose(rdm, expected)
 
-# -------------------- Error handling --------------------
 
 def test_compute_reduced_density_matrix_raises_on_bad_shape():
     # Not a power-of-two dimension (3x3)
     bad = np.eye(3)
     with pytest.raises(ValueError):
         compute_reduced_density_matrix(bad, configuration=[1, 1])
+
 
 def test_compute_reduced_density_matrix_raises_on_wrong_config_length():
     psi = np.array([1.0, 0.0], dtype=np.complex128)  # 1 qubit

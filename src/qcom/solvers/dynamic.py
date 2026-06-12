@@ -1,0 +1,247 @@
+"""
+Dynamic solver — generic time evolution under time-dependent Hamiltonians.
+
+This module evolves a quantum state under H(t) by applying the matrix exponential.
+It is model-agnostic: you provide
+  • a TimeSeries of control channels,
+  • an adapter that maps sampled channel values → H(t),
+  • an initial state vector.
+
+We intentionally do NOT expose Trotter modes here. If you need more scalable
+methods, use a dedicated algorithmic solver (e.g., TEBD) elsewhere in the package.
+
+Typical usage
+-------------
+>>> from qcom.controls.time_series import TimeSeries
+>>> from qcom.controls.adapters.rydberg import RydbergAdapter
+>>> from qcom.solvers.dynamic import evolve_state
+>>> ts = TimeSeries(...); adapter = RydbergAdapter(...)
+>>> psi_T, out = evolve_state(ts, adapter, psi0, n_steps=400, record=True)
+
+Notes
+-----
+• Accepts dense ndarray or CSR/CSC sparse matrices from the adapter.
+• Uses SciPy's expm_multiply to avoid materializing the full unitary.
+• Progress display integrates with `ProgressManager` if available.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Iterable, Mapping, Protocol, runtime_checkable
+
+import numpy as np
+
+from qcom.core import EvolutionResult
+
+try:
+    import scipy.sparse as _sp
+except Exception:  # pragma: no cover
+    _sp = None
+
+from scipy.sparse.linalg import expm_multiply
+
+# Progress manager is optional; if not present we no-op
+try:
+    from qcom._internal.progress import ProgressManager as _ProgressManager
+except Exception:  # pragma: no cover
+
+    class _DummyPM:
+        @staticmethod
+        def progress(*args, **kwargs):
+            from contextlib import nullcontext
+
+            return nullcontext()
+
+        @staticmethod
+        def dummy_context():
+            from contextlib import nullcontext
+
+            return nullcontext()
+
+        @staticmethod
+        def update_progress(*args, **kwargs):
+            pass
+
+    ProgressManager: Any = _DummyPM()
+else:
+    ProgressManager = _ProgressManager
+
+
+@runtime_checkable
+class ControlAdapter(Protocol):
+    """
+    Minimal protocol an adapter must follow.
+
+    Required
+    --------
+    • required_channels : tuple[str, ...]
+        Names of channels to sample from the TimeSeries (case-sensitive).
+    • hamiltonian_at(t: float, controls: Mapping[str, float]) -> ArrayLike
+        Return the full Hermitian matrix H(t) (dense ndarray or sparse CSR/CSC).
+
+    Optional
+    --------
+    • dimension : int
+        If provided and nonzero, used for early validation of the initial state size.
+    """
+
+    @property
+    def required_channels(self) -> tuple[str, ...]: ...
+    def hamiltonian_at(self, t: float, controls: Mapping[str, float]) -> Any: ...
+    @property
+    def dimension(self) -> int: ...
+
+
+def _is_sparse(A) -> bool:
+    return _sp is not None and _sp.issparse(A)
+
+
+def _normalize(psi):
+    nrm = np.linalg.norm(psi)
+    if nrm == 0.0:
+        return psi
+    return psi / nrm
+
+
+def evolve_state(
+    time_series,
+    adapter: ControlAdapter,
+    psi0: np.ndarray,
+    *,
+    n_steps: int | None = None,
+    times: Iterable[float] | None = None,
+    normalize_each_step: bool = True,
+    record: bool = False,
+    return_result: bool = False,
+    show_progress: bool = True,
+):
+    """
+    Evolve a state under a time-dependent Hamiltonian using full expm of H(t_mid)*dt.
+
+    Time grid
+    ---------
+    • Provide exactly one of:
+        - `times` : explicit monotonically increasing array-like including endpoints, OR
+        - `n_steps`: number of uniform steps across the union domain of the TimeSeries.
+    • The simulation window is inferred from `time_series.domain()`; there is no t_span argument.
+
+    Args
+    ----
+    time_series:
+        A `TimeSeries` providing control channels. It may contain more channels than required;
+        only `adapter.required_channels` are sampled.
+    adapter:
+        Object implementing the ControlAdapter protocol (see above).
+    psi0:
+        Initial state vector (1D, complex128). Length must match Hilbert dimension.
+    n_steps:
+        Number of uniform steps across the TimeSeries union domain. Use when `times` is not given.
+    times:
+        Explicit monotonically increasing array-like of times including both endpoints.
+        If provided, `n_steps` must be None.
+    normalize_each_step:
+        If True, renormalize the state vector after each step (numerical hygiene).
+    record:
+        If True, return a trajectory dict with "times" and "states".
+    show_progress:
+        If True, display a progress bar using ProgressManager.
+
+    Returns
+    -------
+    psi_T : np.ndarray
+        Final state at the last time in the grid.
+    out : dict
+        Metadata; if `record` is True, contains:
+          - "times": np.ndarray of shape (M,)
+          - "states": list[np.ndarray] (length M)
+    """
+    psi = np.asarray(psi0, dtype=np.complex128).reshape(-1)
+    dim = psi.shape[0]
+    if hasattr(adapter, "dimension"):
+        try:
+            adim = int(getattr(adapter, "dimension", 0))
+            if adim and adim != dim:
+                raise ValueError(
+                    f"Initial state dimension {dim} does not match adapter.dimension={adim}."
+                )
+        except Exception:
+            pass
+
+    if (times is None) == (n_steps is None):
+        raise ValueError("Provide exactly one of 'n_steps' or 'times'.")
+
+    if times is not None:
+        t_grid = np.asarray(list(times), dtype=np.float64)
+        if t_grid.ndim != 1 or t_grid.size < 2:
+            raise ValueError("'times' must be a 1D array with at least two entries (t0, t1).")
+    else:
+        # derive from the TimeSeries union domain
+        t0, t1 = time_series.domain()
+        if n_steps is None or n_steps < 1:
+            raise ValueError("'n_steps' must be >= 1.")
+        t_grid = np.linspace(float(t0), float(t1), int(n_steps) + 1, dtype=np.float64)
+
+    req = tuple(getattr(adapter, "required_channels", ()))
+    if not req:
+        # Fall back to sampling everything present
+        req = tuple(time_series.channel_names)
+
+    # Prepare recording
+    traj_times: np.ndarray | None = None
+    traj_states: list[np.ndarray] | None = None
+    if record:
+        traj_times = t_grid.copy()
+        traj_states = [psi.copy()]
+
+    # Progress: one update per time step
+    total_steps = t_grid.size - 1
+    with (
+        ProgressManager.progress("Time evolution", total_steps)
+        if show_progress
+        else ProgressManager.dummy_context()
+    ):
+        for s in range(total_steps):
+            t_a, t_b = float(t_grid[s]), float(t_grid[s + 1])
+            dt = t_b - t_a
+            # Sample controls at the subinterval midpoint (piecewise-constant per subinterval)
+            t_mid = 0.5 * (t_a + t_b)
+            controls = {
+                name: float(val[0])
+                for name, val in time_series.value_at([t_mid], channels=req).items()
+            }  # dict[str, np.ndarray] -> scalar
+
+            # Apply exp(-i H dt) to psi without materializing the full unitary.
+            H = adapter.hamiltonian_at(t_mid, controls)
+            # Materialize as sparse CSR if adapter didn't already
+            if _is_sparse(H):
+                A = H
+            else:
+                A = np.asarray(H, dtype=np.complex128)
+            A = _sp.csr_matrix(A) if _is_sparse(A) else np.asarray(A, np.complex128)
+            psi = expm_multiply((-1j * dt) * A, psi)
+
+            if normalize_each_step:
+                psi = _normalize(psi)
+
+            if record and traj_states is not None:
+                traj_states.append(psi.copy())
+
+            if show_progress:
+                ProgressManager.update_progress(min(s + 1, total_steps))
+
+    out: dict[str, object] = {}
+    if record and traj_times is not None and traj_states is not None:
+        out["times"] = traj_times
+        out["states"] = traj_states
+    if return_result:
+        return EvolutionResult(
+            final_state=psi,
+            times=traj_times,
+            states=tuple(traj_states) if traj_states is not None else None,
+            metadata={
+                "normalize_each_step": normalize_each_step,
+                "record": record,
+                "n_steps": total_steps,
+            },
+        )
+    return psi, out

@@ -1,16 +1,18 @@
+import logging
+
 import numpy as np
 import pytest
 
 # Use a non-interactive backend for CI / headless runs
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 from qcom.lattice_register import LatticeRegister
+from qcom._internal import fonts as font_helpers
 
-
-# ----------------------------- Fixtures -----------------------------
 
 @pytest.fixture
 def empty_reg():
@@ -21,24 +23,26 @@ def empty_reg():
 @pytest.fixture
 def simple_reg():
     """Three coplanar sites (z=0) for 2D paths."""
-    return LatticeRegister([
-        (0.0,     0.0,     0.0),
-        (1.0e-6,  0.0,     0.0),
-        (0.0,     2.0e-6,  0.0),
-    ])
+    return LatticeRegister(
+        [
+            (0.0, 0.0, 0.0),
+            (1.0e-6, 0.0, 0.0),
+            (0.0, 2.0e-6, 0.0),
+        ]
+    )
 
 
 @pytest.fixture
 def three_d_reg():
     """Three sites with nonzero z for 3D plotting paths."""
-    return LatticeRegister([
-        (0.0,     0.0,     0.0),
-        (1.0e-6,  0.0,     1.0e-6),
-        (0.0,     2.0e-6,  2.0e-6),
-    ])
+    return LatticeRegister(
+        [
+            (0.0, 0.0, 0.0),
+            (1.0e-6, 0.0, 1.0e-6),
+            (0.0, 2.0e-6, 2.0e-6),
+        ]
+    )
 
-
-# ----------------------------- __init__ -----------------------------
 
 def test_init_empty_shape(empty_reg):
     # there should be no sites in the empty register
@@ -129,27 +133,28 @@ def test_init_disallows_duplicates():
 
     # add several sites before we repeat one
     with pytest.raises(ValueError):
-        LatticeRegister([
-            (0.0, 0.0, 0.0),
-            (1.0e-6, 0.0, 0.0),
-            (0.0, 1.0e-6, 0.0),
-            (1.0e-6, 1.0e-6, 0.0),
-            (0.5e-6, 0.5e-6, 0.0),
-            (1.0e-6, 0.5e-6, 0.0),
-            (0.5e-6, 1.0e-6, 0.0),
-            (1.0e-6, 1.0e-6, 0.0),  # duplicate of #4
-        ])
+        LatticeRegister(
+            [
+                (0.0, 0.0, 0.0),
+                (1.0e-6, 0.0, 0.0),
+                (0.0, 1.0e-6, 0.0),
+                (1.0e-6, 1.0e-6, 0.0),
+                (0.5e-6, 0.5e-6, 0.0),
+                (1.0e-6, 0.5e-6, 0.0),
+                (0.5e-6, 1.0e-6, 0.0),
+                (1.0e-6, 1.0e-6, 0.0),  # duplicate of #4
+            ]
+        )
 
 
 def test_init_accepts_iterables():
     def gen():
         yield (0.0, 0.0, 0.0)
         yield (1e-6, 0.0, 0.0)
+
     reg = LatticeRegister(gen())
     assert len(reg) == 2
 
-
-# ----------------------------- __len__ -----------------------------
 
 def test_len_tracks_number_of_sites(empty_reg):
     empty_reg.add((0.0, 0.0, 0.0))
@@ -157,16 +162,12 @@ def test_len_tracks_number_of_sites(empty_reg):
     assert len(empty_reg) == 2
 
 
-# ----------------------------- positions property -----------------------------
-
 def test_positions_view_is_read_only(simple_reg):
     view = simple_reg.positions
     assert view.flags["WRITEABLE"] is False
     with pytest.raises(ValueError):
         view[0, 0] = 123.0
 
-
-# ----------------------------- add() -----------------------------
 
 def test_add_appends_insertion_order(empty_reg):
     idx0 = empty_reg.add((0.0, 0.0, 0.0))
@@ -194,8 +195,6 @@ def test_add_rejects_non_finite_values(empty_reg):
         empty_reg.add((np.nan, 0.0, 0.0))
 
 
-# ----------------------------- remove() -----------------------------
-
 def test_remove_by_index(simple_reg):
     removed = simple_reg.remove(1)
     assert removed == 1
@@ -209,8 +208,6 @@ def test_remove_invalid_index(simple_reg):
         simple_reg.remove(10)
 
 
-# ----------------------------- position() -----------------------------
-
 def test_position_returns_coordinates(simple_reg):
     pos = simple_reg.position(1)
     assert pos == (1.0e-6, 0.0, 0.0)
@@ -223,15 +220,11 @@ def test_position_invalid_index(simple_reg):
         simple_reg.position(99)
 
 
-# ----------------------------- as_array() -----------------------------
-
 def test_as_array_returns_independent_copy(simple_reg):
     arr = simple_reg.as_array()
     arr[0, 0] = 123.0
     assert simple_reg.positions[0, 0] == 0.0
 
-
-# ----------------------------- index_map() -----------------------------
 
 def test_index_map_formats_expected_rows(simple_reg):
     map_str = simple_reg.index_map()
@@ -247,15 +240,11 @@ def test_index_map_respects_max_rows(simple_reg):
     assert "... (" in map_str
 
 
-# ----------------------------- __repr__ -----------------------------
-
 def test_repr_contains_summary(simple_reg):
     rep = repr(simple_reg)
     assert "LatticeRegister" in rep
     assert "N=3" in rep
 
-
-# ----------------------------- distance() -----------------------------
 
 def test_distance_between_sites(simple_reg):
     dist = simple_reg.distance(0, 1)
@@ -271,8 +260,6 @@ def test_distance_invalid_indices(simple_reg):
         simple_reg.distance(0, 99)
 
 
-# ----------------------------- distances() -----------------------------
-
 def test_distances_matrix_is_symmetric(simple_reg):
     D = simple_reg.distances()
     assert D.shape == (3, 3)
@@ -284,16 +271,12 @@ def test_distances_diagonal_is_zero(simple_reg):
     np.testing.assert_allclose(np.diag(D), np.zeros(3))
 
 
-# ----------------------------- clear() -----------------------------
-
 def test_clear_empties_register(simple_reg):
     result = simple_reg.clear()
     assert result is None
     assert len(simple_reg) == 0
     assert simple_reg.positions.shape == (0, 3)
 
-
-# ----------------------------- plot() -----------------------------
 
 def test_plot_returns_2d_axes(simple_reg):
     ax = simple_reg.plot(show_index=False)
@@ -316,5 +299,58 @@ def test_plot_handles_empty_register(empty_reg):
     ax = empty_reg.plot(show_index=False)
     try:
         assert isinstance(ax, matplotlib.axes.Axes)
+    finally:
+        plt.close(ax.figure)
+
+
+def test_publication_font_context_prefers_times_new_roman_when_available(tmp_path, monkeypatch):
+    font_file = tmp_path / "Times New Roman.ttf"
+    font_file.write_bytes(b"not a real font, but enough for path discovery")
+
+    addfont_calls = []
+
+    def fake_addfont(path):
+        addfont_calls.append(path)
+
+    monkeypatch.setattr("matplotlib.font_manager.fontManager.addfont", fake_addfont)
+
+    rc = font_helpers.publication_font_context(candidate_paths=[font_file])
+
+    assert addfont_calls == [str(font_file)]
+    assert rc["font.family"] == "serif"
+    assert rc["font.serif"][0] == "Times New Roman"
+    assert rc["font.serif"][1:] == ["Times", "Liberation Serif", "DejaVu Serif"]
+    assert rc["mathtext.fontset"] == "stix"
+
+
+def test_publication_font_context_falls_back_when_times_new_roman_is_missing(tmp_path, monkeypatch):
+    missing_font = tmp_path / "missing" / "Times New Roman.ttf"
+
+    def fail_addfont(_path):
+        raise AssertionError("addfont() should not be called when no font file exists")
+
+    monkeypatch.setattr("matplotlib.font_manager.fontManager.addfont", fail_addfont)
+
+    rc = font_helpers.publication_font_context(candidate_paths=[missing_font])
+
+    assert rc["font.family"] == "serif"
+    assert rc["font.serif"] == ["Times", "Liberation Serif", "DejaVu Serif"]
+    assert rc["mathtext.fontset"] == "stix"
+
+
+def test_plot_falls_back_without_times_new_roman(simple_reg, tmp_path, monkeypatch, caplog):
+    missing_font = tmp_path / "missing" / "Times New Roman.ttf"
+    monkeypatch.setattr(
+        font_helpers,
+        "_default_times_new_roman_paths",
+        lambda: (missing_font,),
+    )
+
+    caplog.set_level(logging.WARNING, logger="matplotlib.font_manager")
+
+    ax = simple_reg.plot(show_index=False)
+    try:
+        assert isinstance(ax, matplotlib.axes.Axes)
+        assert not any("findfont" in record.getMessage().lower() for record in caplog.records)
     finally:
         plt.close(ax.figure)
