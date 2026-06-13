@@ -8,7 +8,9 @@ and easy to validate.
 - Library code lives in `src/qcom`.
 - Tests live in `tests` and should mirror the package subsystem they cover.
 - Examples live in `examples` and should be runnable scripts.
-- Tutorials live in `tutorials` and should remain output-free notebooks.
+- Tutorials live in `tutorials` and may keep saved outputs when they help the
+  lesson. Re-execute notebooks before committing so any outputs are current and
+  intentional.
 - Development utilities live in `scripts`.
 - `README.md` is the user-facing front door and documentation map.
 - `CONTRIBUTING.md` is the canonical contributor standard.
@@ -113,6 +115,21 @@ deprecation plan.
   replacement name. Keep aliases grouped, documented, and tested with
   `pytest.warns`.
 
+## Compatibility And Deprecation
+
+- Prefer the new public name in fresh code, examples, tutorials, and tests.
+- Keep a compatibility alias only when it protects existing callers.
+- An alias should remain available for at least one minor release after the
+  preferred name is introduced, unless a later release note explicitly extends
+  the window.
+- Deprecation warnings should name both the old symbol and the preferred
+  replacement, and they should fire once per call path.
+- Each alias needs a focused behavior test and a warning test before release.
+- Migration notes for removals belong in release notes and `ROADMAP.md`, not
+  scattered through code comments.
+- Preserve keyword behavior in wrappers unless a keyword rename is itself part
+  of the migration plan.
+
 ## Comments And Docstrings
 
 - Comments should explain why something is non-obvious, not restate what each
@@ -163,9 +180,20 @@ nox -s tutorials
 If `nox` is unavailable in the local environment, use equivalent `uv run --with`
 commands and report the exact commands used.
 
+## Dead Code Review
+
+- Use `vulture` as a review aid, not as an automatic delete list.
+- Expect lazy exports, compatibility aliases, and intentional facade helpers to
+  appear as false positives.
+- Before removing an apparently unused symbol, trace its package exports,
+  compatibility wrappers, tests, notebooks, and docs references.
+- If a false positive is expected to remain, keep a short comment or roadmap
+  note that explains why.
+
 ## Tutorials
 
-- Keep notebook outputs and execution counts cleared in git.
+- Keep notebook outputs current and intentional in git. Avoid stale outputs from
+  failed or exploratory runs.
 - Preserve the tutorial teaching style: Markdown should explain the reasoning,
   and code cells should show real usage.
 - Validate notebooks with `scripts/validate_tutorials.py`.
@@ -177,3 +205,18 @@ commands and report the exact commands used.
 - Separate mechanical formatting from behavior changes when practical.
 - Include the validation commands and results in the final report.
 - Call out intentional follow-up work instead of hiding known inconsistencies.
+
+## Release Hygiene
+
+- Before cutting a release, run the standard checks from the repository root:
+
+```bash
+nox -s lint typecheck test build
+```
+
+- Review package metadata, dependency groups, and version fields for accuracy.
+- Confirm release notes or changelog notes cover public API changes, deprecations,
+  compatibility aliases, and tutorial-impacting updates.
+- Run `nox -s test_extras` when optional dependency behavior changed.
+- Run `nox -s tutorials` when notebooks or tutorial-facing APIs changed.
+- Keep release decisions visible in `ROADMAP.md` until the release is complete.

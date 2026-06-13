@@ -20,31 +20,49 @@ update any linked docs that are now out of sync.
   bitstring workflows.
 - Compatibility aliases are retained and emit `DeprecationWarning` through
   `src/qcom/_internal/deprecations.py`.
+- Preferred API names now dominate README examples, tutorials, examples, and
+  repo-owned tests; legacy names remain only as compatibility shims and
+  explicit alias tests.
+- Compatibility wrappers are covered by focused warning and forwarding tests
+  in the relevant subsystem suites.
+- The control-adapter registry has direct tests for registration, lookup, and
+  missing-key behavior.
+- Markdown ownership is kept clean across README, CONTRIBUTING, repo-landscape,
+  and ROADMAP.
+- Dead-code tooling still flags lazy exports and compatibility aliases, and the
+  repo treats those as intentional false positives.
 - `mypy` now covers the full `src/qcom` package instead of a hand-picked subset.
 - Control adapters are explicit: the registry remains available, but no default
   adapters are auto-registered.
 - Optional dependency coverage now runs in CI through `nox -s test_extras`.
 - Tutorial notebooks currently execute cleanly under
   `scripts/validate_tutorials.py`.
+- Deprecated aliases follow the documented release policy in
+  [CONTRIBUTING.md](CONTRIBUTING.md), so old names remain available only as
+  retained compatibility shims.
+- Release hygiene now has a concrete checklist in [CONTRIBUTING.md](CONTRIBUTING.md)
+  for build checks, package metadata review, release notes, and optional/tutorial
+  validation.
+- Public API names are explicit in package exports, aligned with the naming
+  standard, and covered by facade tests.
+- Public renames require compatibility aliases, warnings, tests, and migration
+  notes.
+- Deprecated alias migration notes live in [README.md](README.md), keeping old
+  names out of teaching material except compatibility notes and alias tests.
+- Examples are kept runnable and aligned with preferred API names.
+- Tutorial notebooks are validated after changes and may keep saved outputs
+  when they help the lesson.
 - Standard validation is organized through `noxfile.py`, with extra tutorial
   validation through `scripts/validate_tutorials.py`.
 
 ## Immediate Fixes
 
 ### Now
-
-- Define the release policy for deprecated aliases before removing any old
-  public names. Include the warning window, changelog expectations, and test
-  expectations.
-- Keep the preferred API names dominant in README examples, tutorials, examples,
-  and repo-owned tests.
-- Preserve output-free tutorial notebooks after API or documentation changes.
+- Keep tutorial notebook outputs current and intentional after API or
+  documentation changes.
 
 ### Next
 
-- Add targeted tests for any adapter-registry behavior that remains public.
-- Audit compatibility wrappers before release so every alias warns once per call
-  path and forwards keyword arguments predictably.
 - Document any non-obvious migration guidance for deprecated names in one place
   rather than scattering notes across examples.
 
@@ -52,18 +70,17 @@ update any linked docs that are now out of sync.
 
 ### Now
 
-- Keep Markdown ownership clean: README for orientation, CONTRIBUTING for
-  standards, repo-landscape for architecture, and ROADMAP for backlog.
+- Keep Markdown ownership clean and revisit README, CONTRIBUTING,
+  repo-landscape, and ROADMAP together when one of them changes.
+- Keep the documented dead-code review flow in mind; treat lazy exports and
+  compatibility aliases as intentional false positives unless tests or exports
+  change.
 - Avoid broad refactors while compatibility aliases are being settled.
-- Treat lazy exports and compatibility aliases as intentional when reviewing
-  dead-code tooling output.
 
 ### Next
 
 - Keep `mypy` coverage on the full `src/qcom` package and consider stricter
   checking only after the current baseline stays green in CI.
-- Add release hygiene around build checks, package metadata review, and release
-  notes.
 - Consider a lightweight dead-code or vulture review process with documented
   false positives for lazy package exports.
 
@@ -76,12 +93,7 @@ update any linked docs that are now out of sync.
 
 ### Now
 
-- Keep compatibility aliases retained-but-deprecated until the release policy is
-  written.
-- Keep public names explicit, descriptive, and aligned with
-  [CONTRIBUTING.md](CONTRIBUTING.md).
-- Avoid renaming public APIs without aliases, warnings, tests, and migration
-  notes.
+- No open items.
 
 ### Next
 
@@ -100,18 +112,11 @@ update any linked docs that are now out of sync.
 
 ### Now
 
-- Keep tutorials output-free in git and validate them after notebook changes.
-- Update docs in the same change as behavior, public API, workflow, or tutorial
-  edits.
-- Keep old API names out of teaching material except in explicit compatibility
-  notes or alias tests.
+- No open items.
 
 ### Next
 
-- Add short migration notes for deprecated aliases after the release policy is
-  decided.
-- Expand the docs/site only after the current Markdown ownership remains stable.
-- Keep examples runnable and aligned with preferred API names.
+- No open items.
 
 ### Later
 
@@ -142,7 +147,6 @@ update any linked docs that are now out of sync.
 
 ## Known Issues
 
-- Compatibility aliases warn, but the removal timeline is not yet defined.
 - Optional dependencies (`pyarrow`, `matplotlib`, and `mthree`) are intentionally
   isolated, and CI now exercises them through `nox -s test_extras`, but
   release checks should still validate the real environment before shipping.
