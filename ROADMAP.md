@@ -43,6 +43,10 @@ update any linked docs that are now out of sync.
 - Release hygiene now has a concrete checklist in [CONTRIBUTING.md](CONTRIBUTING.md)
   for build checks, package metadata review, release notes, and optional/tutorial
   validation.
+- Public API names are explicit in package exports, aligned with the naming
+  standard, and covered by facade tests.
+- Public renames require compatibility aliases, warnings, tests, and migration
+  notes.
 - Standard validation is organized through `noxfile.py`, with extra tutorial
   validation through `scripts/validate_tutorials.py`.
 
@@ -84,12 +88,7 @@ update any linked docs that are now out of sync.
 
 ### Now
 
-- Keep compatibility aliases retained-but-deprecated until the release policy is
-  written.
-- Keep public names explicit, descriptive, and aligned with
-  [CONTRIBUTING.md](CONTRIBUTING.md).
-- Avoid renaming public APIs without aliases, warnings, tests, and migration
-  notes.
+- No open items.
 
 ### Next
 
