@@ -111,6 +111,29 @@ Validate tutorials after notebook changes:
 nox -s tutorials
 ```
 
+## Deprecated Alias Migration
+
+QCOM keeps older public names as deprecated compatibility aliases for at least
+one minor release after a preferred name is introduced. New code, examples, and
+tutorials should use the preferred names below.
+
+| Deprecated Alias | Preferred Name |
+| --- | --- |
+| `order_dict` | `sort_bitstring_distribution` |
+| `part_dict` | `marginalize_bitstring_distribution` |
+| `cumulative_probability_at_value` | `compute_cumulative_probability_at_value` |
+| `cumulative_distribution` | `compute_cumulative_distribution` |
+| `compute_N_of_p_all` | `compute_n_of_p_curve` |
+| `compute_N_of_p` | `compute_n_of_p` |
+| `introduce_error` | `apply_readout_error` |
+| `print_most_probable_data` | `print_most_probable_bitstrings` |
+| `sample_data` | `sample_counts` |
+| `combine_datasets` | `combine_bitstring_datasets` |
+| `parse_json` | `parse_aquila_json` |
+| `parse_file` | `parse_text` |
+| `save_data` | `save_text` |
+| `save_dict_to_parquet` | `save_parquet` |
+
 ## Development
 
 Contributor standards live in [CONTRIBUTING.md](CONTRIBUTING.md). Run the

@@ -47,6 +47,11 @@ update any linked docs that are now out of sync.
   standard, and covered by facade tests.
 - Public renames require compatibility aliases, warnings, tests, and migration
   notes.
+- Deprecated alias migration notes live in [README.md](README.md), keeping old
+  names out of teaching material except compatibility notes and alias tests.
+- Examples are kept runnable and aligned with preferred API names.
+- Tutorial notebooks are validated after changes and may keep saved outputs
+  when they help the lesson.
 - Standard validation is organized through `noxfile.py`, with extra tutorial
   validation through `scripts/validate_tutorials.py`.
 
@@ -106,19 +111,12 @@ update any linked docs that are now out of sync.
 ## Documentation And Tutorials
 
 ### Now
-- Validate tutorials after notebook changes and refresh their outputs when the
-  teaching flow benefits from saved results.
-- Update docs in the same change as behavior, public API, workflow, or tutorial
-  edits.
-- Keep old API names out of teaching material except in explicit compatibility
-  notes or alias tests.
+
+- No open items.
 
 ### Next
 
-- Add short migration notes for deprecated aliases after the release policy is
-  decided.
-- Expand the docs/site only after the current Markdown ownership remains stable.
-- Keep examples runnable and aligned with preferred API names.
+- No open items.
 
 ### Later
 
